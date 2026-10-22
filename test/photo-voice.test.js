@@ -75,3 +75,12 @@ test('Polly voice: neural Ayanda en-ZA, cached by text hash, capped and session-
   assert.equal((await speak('hi', 'forged')).status, 400);
   env.POLLY = { synth: async () => { throw new Error('down'); } }; assert.equal((await speak('a new line')).status, 503);
 });
+
+test('stray mic sounds and "can you hear me" get a short warm reply with no model call', async () => {
+  let n = 0; const env = await makeEnv({ CONSOLE_MODEL_ID: 'us.amazon.nova-lite-v1:0', BEDROCK: { converse: async () => { n++; return { output: { message: { content: [{ text: 'x' }] } } }; } } });
+  const sid = newSessionFor('fillersession000000001');
+  const say = async (text) => (await call(env, '/console/api/say', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid, text }) })).json();
+  const a = await say('so'); assert.match(a.speech, /^Sorry, I only caught "so"\. What needs fixing\?$/);
+  const b = await say('hello can you hear me'); assert.match(b.speech, /^Yes, I can hear you!/);
+  assert.equal(n, 0);
+});

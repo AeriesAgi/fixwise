@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "note": "Fixwise's own extension to the CivicOps work-order catalogue (which is used unchanged) for municipal electricity and water service failures. SLA targets are Fixwise demo targets, not municipal by-law commitments. Status is a simulated feed, labelled as such wherever it is shown.",
+  "workOrderTypes": [
+    { "code": "ELEC.AREA_OUTAGE", "title": "Unplanned power outage", "department": "Electricity and Energy", "hazardClass": "high", "slaTargetMinutes": 240, "stallsAt": 1 },
+    { "code": "ELEC.CABLE_THEFT", "title": "Cable theft or damaged cable", "department": "Electricity and Energy", "hazardClass": "high", "slaTargetMinutes": 720, "stallsAt": 1 },
+    { "code": "ELEC.SUBSTATION_TRIP", "title": "Substation or mini-sub fault", "department": "Electricity and Energy", "hazardClass": "high", "slaTargetMinutes": 240, "stallsAt": 1 },
+    { "code": "WATER.NO_SUPPLY", "title": "No water supply", "department": "Water and Sanitation", "hazardClass": "high", "slaTargetMinutes": 480, "stallsAt": 1 },
+    { "code": "WATER.LOW_PRESSURE", "title": "Low water pressure", "department": "Water and Sanitation", "hazardClass": "moderate", "slaTargetMinutes": 1440, "stallsAt": 1 },
+    { "code": "WATER.METER_LEAK", "title": "Leaking water meter", "department": "Water and Sanitation", "hazardClass": "moderate", "slaTargetMinutes": 2880, "stallsAt": 1 },
+    { "code": "SEW.OVERFLOW", "title": "Sewage overflow", "department": "Water and Sanitation", "hazardClass": "high", "slaTargetMinutes": 240, "stallsAt": 1 }
+  ]
+}

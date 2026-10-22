@@ -4,23 +4,48 @@ import { readFileSync } from 'node:fs';
 import { sha256hex } from '../util.js';
 
 export const CATALOG = JSON.parse(readFileSync(new URL('../../vendor/civicops/catalog/work-orders.v1.json', import.meta.url), 'utf8'));
-const TYPES = new Map(CATALOG.workOrderTypes.map((t) => [t.code, t]));
+export const UTILITIES = JSON.parse(readFileSync(new URL('../../data/municipal-utilities.json', import.meta.url), 'utf8'));
+const TYPES = new Map([...CATALOG.workOrderTypes, ...UTILITIES.workOrderTypes].map((t) => [t.code, t]));
+export const typeOf = (code) => TYPES.get(code);
+// Electricity and water service failures. "No power" or "no water" alone is ambiguous: one house (a tripped main
+// switch, a closed stopcock: a private job) or the whole area (a municipal case). We ask one question instead of guessing.
+const AREA_WORDS = /\b(neighbou?rs?|whole (street|road|area|suburb|block|complex)|entire (street|area|suburb)|everyone|everybody|the area|our area|the street is off|street is dark|whole suburb|next door)\b/;
+const HOUSE_WORDS = /\b(just (us|me|our (house|home|place))|only (us|me|our (house|home|place))|neighbou?rs? (have|still have|are fine|are on)|main switch (has )?tripped|db board (has )?tripped|trip switch)\b/;
+const POWER_OFF = /\b(no (power|electricity|lights)|power('s| is| has)? (off|out|gone|cut|down)|electricity('s| is)? (off|out|gone|cut)|without (power|electricity)|power outage|outage|blackout|lights are out)\b/;
+const WATER_OFF = /\b(no water|water('s| is| has)? (off|gone|cut)|without water|taps? (are|is) dry|dry taps?)\b/;
+export function classifyUtility(t, scope) {
+  if (any(t, 'raw sewage', 'sewage', 'sewer overflow', 'sewer is overflowing', 'manhole is overflowing', 'manhole overflowing')) return 'SEW.OVERFLOW';
+  if (any(t, 'cable theft', 'cables stolen', 'cable stolen', 'stole the cable', 'cable was stolen', 'cables were stolen', 'cut the cable')) return 'ELEC.CABLE_THEFT';
+  if (any(t, 'power line down', 'power line is down', 'line is down', 'lines are down', 'cable on the ground', 'wire on the ground', 'fallen line', 'fallen power line', 'pole is down', 'pole down')) return 'ELEC.LIVE_WIRE_DOWN';
+  if (any(t, 'substation', 'mini-sub', 'mini sub', 'minisub', 'transformer blew', 'transformer exploded', 'transformer bang')) return 'ELEC.SUBSTATION_TRIP';
+  if (any(t, 'meter is leaking', 'meter leaking', 'leaking meter', 'leak at the meter', 'water meter is leaking', 'water meter leak')) return 'WATER.METER_LEAK';
+  if (any(t, 'low water pressure', 'low pressure', 'pressure is low', 'pressure is weak', 'water is a trickle', 'just a trickle')) return 'WATER.LOW_PRESSURE';
+  const power = POWER_OFF.test(t), water = WATER_OFF.test(t);
+  if (!power && !water) return null;
+  const area = scope === 'area' || (scope !== 'household' && AREA_WORDS.test(t) && !HOUSE_WORDS.test(t));
+  const house = scope === 'household' || HOUSE_WORDS.test(t) || /\b(tripped|tripping|keeps tripping)\b/.test(t);
+  if (area) return power ? 'ELEC.AREA_OUTAGE' : 'WATER.NO_SUPPLY';
+  if (house) return power ? 'HOUSE.POWER' : 'HOUSE.WATER';
+  return power ? 'ASK.POWER' : 'ASK.WATER';
+}
 const any = (t, ...terms) => terms.some((x) => t.includes(x));
 
-export function classifyPublic(description) {
+export function classifyPublic(description, scope) {
   const t = description.toLowerCase();
-  const code = any(t, 'live wire', 'exposed wire', 'electrocution', 'lewendige draad') ? 'ELEC.LIVE_WIRE_DOWN'
+  const u = classifyUtility(t, scope);
+  if (u && !u.startsWith('ELEC.') && !u.startsWith('WATER.') && !u.startsWith('SEW.')) return { scope: u }; // ASK.* or HOUSE.*
+  const code = u || (any(t, 'live wire', 'exposed wire', 'electrocution', 'lewendige draad') ? 'ELEC.LIVE_WIRE_DOWN'
     : any(t, 'flood response', 'flooding home', 'flooding my home', 'flooding inside', 'flooding my house', 'huis oorstroom') ? 'EMERG.FLOOD_RESPONSE'
     : any(t, 'stormwater', 'storm water', 'drain') ? 'ROADS.BLOCKED_DRAIN'
-    : any(t, 'burst pipe in the street', 'burst main', 'water main', 'water in the street', 'no water', 'street is flooding') ? 'WATER.BURST_MAIN'
+    : any(t, 'burst pipe in the street', 'burst main', 'water main', 'water in the street', 'street is flooding') ? 'WATER.BURST_MAIN'
     : any(t, 'traffic light', 'traffic signal', 'robot is out', 'robots are out') ? 'ROADS.TRAFFIC_SIGNAL_FAULT'
     : any(t, 'pothole') ? 'ROADS.POTHOLE_REPAIR'
     : any(t, 'streetlight', 'street light', 'street is dark', "street's been dark", 'street has been dark', 'street lights') ? 'ELEC.STREETLIGHT_FAULT'
     : any(t, 'rubbish', 'illegal dumping', 'dumping') ? 'WASTE.ILLEGAL_DUMPING'
-    : null;
+    : null);
   if (!code) return null;
   const type = TYPES.get(code);
-  return { code, title: type.title, category: type.category, department: type.department, hazardClass: type.hazardClass,
+  return { code, title: type.title, category: type.category || type.department, department: type.department, hazardClass: type.hazardClass, ...(type.stallsAt != null ? { utility: true } : {}),
     priority: type.hazardClass === 'critical' ? 'Urgent' : priority(t), slaTargetMinutes: type.slaTargetMinutes };
 }
 
@@ -48,6 +73,9 @@ export function findDuplicate(existing, cand) {
 // Simulated municipal feed: stage advances on a demo clock. Labelled as simulated everywhere it is shown.
 export const STAGES = ['Logged', 'Acknowledged', 'Crew assigned', 'In progress', 'Resolved'];
 export function simulatedStage(c, nowMs, minutesPerStage) {
+  // Utility outages in the simulated feed stall at "Acknowledged" until escalated, so the SLA follow-up can be shown.
+  if (c.utility && !c.escalatedMs) return { stage: STAGES[Math.min(1, Math.floor((nowMs - c.createdMs) / (minutesPerStage * 60000)))], index: Math.min(1, Math.floor((nowMs - c.createdMs) / (minutesPerStage * 60000))) };
+  if (c.utility && c.escalatedMs) { const k = Math.min(STAGES.length - 1, 2 + Math.floor((nowMs - c.escalatedMs) / (minutesPerStage * 60000))); return { stage: STAGES[k], index: k }; }
   const idx = Math.min(STAGES.length - 1, Math.floor((nowMs - c.createdMs) / (minutesPerStage * 60000)));
   return { stage: STAGES[Math.max(0, idx)], index: Math.max(0, idx) };
 }

@@ -39,7 +39,10 @@ const LIMITS = (env) => ({ perIpMin: Number(env.CONSOLE_PER_IP_MIN || 30), perSe
 const ipOf = (req) => (req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || 'unknown').split(',')[0].trim();
 const tooMany = (msg) => json({ error: 'rate_limited', speech: msg }, 429, { 'retry-after': '60' });
 
-const HELP = 'Tell me what\'s broken at home or on your street. For example: "the geyser is leaking", or "the street light outside has been out for two days". I give you safety steps first, log the municipal case, get quotes, and only book when you say yes.';
+const HELP = "Hi! I'm listening. Tell me what's broken at home or on your street, like a leaking geyser or no power, and I'll sort it out.";
+// Stray sounds and fillers the mic picks up ("so", "um", "okay"): a short, warm nudge, no model call.
+const FILLER = /^\W*(so|um+|uh+|erm+|hmm+|ah+|oh|ok(ay)?|and|but|the|a|yeah|yes|no|right|well|like|alexa)\W*$/i;
+const GREETING = /^\W*(hi|hello|hey|hallo|howzit|sawubona|molo|good (morning|afternoon|evening))\b[\w\s,'?!.]*$/i;
 const YESNO = /\b(anyway|yes|yeah|yep|sure|go ahead|book it|do it|confirm|please do|no|nope|don't|do not|not now|wait|hold off)\b/i;
 
 function llmEnabled(env) { return env.CONSOLE_LLM !== '0' && (env.BEDROCK || env.CONSOLE_LLM === '1' || env.AWS_LAMBDA_FUNCTION_NAME); }
@@ -139,6 +142,10 @@ export async function routeConsole(req, env, url, path, ctx) {
     const dkey = `dlg:${sh}`; const dialog = (await kvGet(env, dkey)) || {};
     const client = await mcpClient(env, o, dialog, grant);
 
+    if (!dialog.pendingApproval && !dialog.pendingOverBudget && (FILLER.test(text) || (GREETING.test(text) && /\bhear (me|you)\b/i.test(text)) || /^\W*(can you )?hear me\W*$/i.test(text))) {
+      const speech = FILLER.test(text) ? `Sorry, I only caught "${text.replace(/[^\w' ]/g, '').trim().slice(0, 20)}". What needs fixing?` : /hear/i.test(text) ? "Yes, I can hear you! What needs fixing at home or on your street?" : HELP;
+      return json({ speech, tool: null, calls: [], planner: 'greeting-guard', totalMs: Date.now() - t0 });
+    }
     // 1. Plan. A yes/no to a held booking is decided in code; everything else goes to Nova Lite first.
     let calls = null, planner = 'regex', plannerMs = 0, tokens = null, llmText = '', fallbackReason = null;
     if (dialog.pendingOverBudget && !YESNO.test(text)) delete dialog.pendingOverBudget;

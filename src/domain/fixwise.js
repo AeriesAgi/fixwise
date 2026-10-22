@@ -50,7 +50,7 @@ function pickMatch(m) {
 const say = (text, structured, meta) => ({ content: [{ type: 'text', text }], structuredContent: structured, ...(meta ? { _meta: meta } : {}) });
 const err = (text) => ({ isError: true, content: [{ type: 'text', text }] });
 
-export const OUT_OF_SCOPE = "That's outside what Fixwise does. I handle things that are broken at home, like a geyser, pipe, power, roof, gate or appliance, and problems on your street, like a street light, pothole, water main or dumping. What needs fixing?";
+export const OUT_OF_SCOPE = "Sorry, that's outside what Fixwise does. I sort out things at home and on your street, like a leaking geyser, a power outage or a pothole. What needs fixing?";
 // "in Sandton", "on Jan Smuts Avenue", "at 12 Oak Street": capitalised place words after a preposition.
 export function extractArea(text) {
   const m = /\b(?:in|on|at|near|outside)\s+((?:\d{1,4}\s+)?(?:[A-Z][\w'-]+)(?:\s+[A-Z][\w'-]+){0,3})/.exec(String(text));
