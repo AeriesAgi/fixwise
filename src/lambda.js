@@ -55,6 +55,8 @@ export async function serve(event, env) {
   const res = await handle(toRequest(event), env, { enqueue: env.enqueue });
   const headers = Object.fromEntries(res.headers);
   console.log(JSON.stringify({ level: 'info', method: event.requestContext?.http?.method, path: event.rawPath, status: res.status, ms: Date.now() - t0 })); // no headers, bodies, query strings or tokens
+  // Binary bodies (Polly MP3) must go back base64-encoded, or the Function URL mangles them as UTF-8 text.
+  if (/^(audio|image|video)\/|application\/octet-stream/.test(headers['content-type'] || '')) return { statusCode: res.status, headers, body: Buffer.from(await res.arrayBuffer()).toString('base64'), isBase64Encoded: true };
   return { statusCode: res.status, headers, body: await res.text() };
 }
 

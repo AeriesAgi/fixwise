@@ -84,3 +84,12 @@ test('stray mic sounds and "can you hear me" get a short warm reply with no mode
   const b = await say('hello can you hear me'); assert.match(b.speech, /^Yes, I can hear you!/);
   assert.equal(n, 0);
 });
+
+test('Lambda returns Polly MP3 bytes intact (base64-encoded), not mangled as UTF-8 text', async () => {
+  const { serve } = await import('../src/lambda.js');
+  const mp3 = Buffer.from([0x49, 0x44, 0x33, 0x04, 0x00, 0xff, 0xfb, 0x90, 0x64, 0x80, 0xfe]);
+  const env = await makeEnv({ POLLY: { synth: async () => mp3 } });
+  const sid = newSessionFor('lambdabinarysession0001');
+  const r = await serve({ rawPath: '/console/api/speak', headers: { host: 'fixwise.test', 'content-type': 'application/json' }, requestContext: { http: { method: 'POST' } }, body: JSON.stringify({ sid, text: 'hello there' }) }, env);
+  assert.equal(r.isBase64Encoded, true); assert.deepEqual(Buffer.from(r.body, 'base64'), mp3);
+});
