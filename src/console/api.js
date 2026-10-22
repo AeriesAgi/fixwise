@@ -4,6 +4,7 @@
 import { parseRating } from '../domain/fixwise.js';
 import { LANGS, translate } from './translate.js';
 import { route, rememberArgs } from './intents.js';
+import { noteTopics } from './topics.js';
 import { plan, sanitize } from './planner.js';
 import { McpHttpClient } from './mcp-client.js';
 import { callTool } from '../mcp/server.js';
@@ -249,6 +250,7 @@ export async function routeConsole(req, env, url, path, ctx) {
       const qIssue = sc.issue?.id && (sc.quotes?.length || sc.issue?.quotes?.length || sc.bestQuote) ? sc.issue.id : null;
       if ((d.tool === 'fixwise_report_problem' || d.tool === 'fixwise_compare_quotes') && /quotes?\b/i.test(d.result?.content?.[0]?.text || '')) dialog.quotesOffer = qIssue || dialog.quotesOffer || true;
       if (d.tool === 'fixwise_book_repair' && !sc.approval && !sc.overBudget) delete dialog.quotesOffer;
+      noteTopics(dialog, sc);
       dialog.lastTool = d.tool;
     }
     dialog.hist = [...(dialog.hist || []), { u: text.slice(0, 300), a: speech.slice(0, 300) }].slice(-4);
@@ -259,7 +261,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     return json({ speech, planner, plannerMs, tokens, fallbackReason, totalMs: Date.now() - t0,
       calls: done.map((d) => ({ tool: d.tool, args: d.args, ms: d.ms, transport: d.transport, isError: !!(d.error || d.result?.isError) })),
       tool: first.tool || null, args: first.args, ms: first.ms, isError: done.some((d) => d.error || d.result?.isError),
-      card: withCard ? { uri: withCard.result._meta.ui.resourceUri, data: withCard.result.structuredContent || {} } : null, awaitingYes: !!dialog.pendingApproval, awaitingArea: !!dialog.awaitingArea, awaitingRating: !!dialog.pendingRating });
+      card: withCard ? { uri: withCard.result._meta.ui.resourceUri, data: withCard.result.structuredContent || {} } : null, awaitingYes: !!dialog.pendingApproval, awaitingArea: !!dialog.awaitingArea, awaitingRating: !!dialog.pendingRating, topics: dialog.topics || [] });
   }
   return null;
 }
