@@ -64,6 +64,8 @@ class FixwiseStack(Stack):
         http_fn.add_environment("CONSOLE_MODEL_ID", model_id)
         http_fn.add_to_role_policy(iam.PolicyStatement(actions=["bedrock:InvokeModel"],
                                                        resources=["arn:aws:bedrock:*::foundation-model/amazon.nova-*", f"arn:aws:bedrock:*:{Aws.ACCOUNT_ID}:inference-profile/us.amazon.nova-*"]))
+        # Spoken console replies: Amazon Polly neural TTS only (credits; capped and cached in the app).
+        http_fn.add_to_role_policy(iam.PolicyStatement(actions=["polly:SynthesizeSpeech"], resources=["*"]))
         worker = fn("Advisor", "src/lambda.worker", {**common, "BEDROCK_MODEL_ID": model_id}, 60, 512, None)
         worker.add_event_source(sources.SqsEventSource(queue, batch_size=1))
         worker.add_to_role_policy(iam.PolicyStatement(actions=["bedrock:InvokeModel"],  # Converse is authorised as InvokeModel; Nova only

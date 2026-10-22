@@ -10,6 +10,7 @@ import { RESOURCES } from '../ui/cards.js';
 import { OUT_OF_SCOPE } from '../domain/fixwise.js';
 import { sha256, kvGet, kvPut, json, SEC_HEADERS, origin, now } from '../util.js';
 import { consolePage, consoleScript } from './page.js';
+import { synthesize, cleanForSpeech } from '../voice/polly.js';
 import { createHash, createHmac, randomBytes, timingSafeEqual as tse } from 'node:crypto';
 
 // Strict CSP: no inline script anywhere. The console's script is /console/app.js; each card's single inline script is
@@ -87,6 +88,43 @@ export async function routeConsole(req, env, url, path, ctx) {
     let b; try { b = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
     const sid = String(b.sid || ''); if (!verifySession(env, sid)) return json({ error: 'bad_session' }, 400);
     await kvPut(env, `dlg:${await sha256(sid)}`, {}, 60); return json({ ok: true });
+  }
+  if (path === '/console/api/speak' && req.method === 'POST') { // Polly neural voice for replies (AWS credits; capped and cached)
+    let b; try { b = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    const sid = String(b.sid || ''); if (!verifySession(env, sid)) return json({ error: 'bad_session' }, 400);
+    const text = cleanForSpeech(b.text); if (!text) return json({ error: 'empty' }, 400);
+    const minute = Math.floor(now() / 60);
+    if (await env.KV.incr(`lim:tts:ip:${await sha256(ipOf(req))}:${minute}`, 120) > Number(env.TTS_PER_IP_MIN || 40)) return tooMany('Voice is rate limited. Captions still work.');
+    if (await env.KV.incr(`lim:tts:${Math.floor(now() / 3600)}`, 3700) > Number(env.TTS_PER_HOUR || 600)) return tooMany('Voice is resting for a bit. Captions still work.');
+    try {
+      const r = await synthesize(env, text, b.voice === 'en-GB' ? 'en-GB' : 'en-ZA');
+      return new Response(r.audio, { headers: { 'content-type': 'audio/mpeg', 'cache-control': 'private, max-age=86400', 'x-fixwise-voice': r.voice, 'x-fixwise-cache': r.cached ? 'hit' : 'miss', ...SEC_HEADERS } });
+    } catch (e) { console.error(JSON.stringify({ level: 'warn', msg: 'tts_failed', err: String(e?.name || e).slice(0, 60) })); return json({ error: 'tts_unavailable' }, 503); }
+  }
+  if (path === '/console/api/photo' && req.method === 'POST') { // photo -> live MCP tools/call fixwise_diagnose_photo (Nova Lite vision)
+    let b; try { b = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    const sid = String(b.sid || ''); if (!verifySession(env, sid)) return json({ error: 'bad_session' }, 400);
+    const t0 = Date.now(); const o = origin(env, url); const sh = await sha256(sid); const L = LIMITS(env); const minute = Math.floor(now() / 60);
+    if (await env.KV.incr(`lim:con:ip:${await sha256(ipOf(req))}:${minute}`, 120) > L.perIpMin) return tooMany('Slow down a little. Try again in a minute.');
+    if (await env.KV.incr(`lim:con:s:${sh}:${minute}`, 120) > L.perSessionMin) return tooMany('Slow down a little. Try again in a minute.');
+    if (await env.KV.incr(`lim:nova:${Math.floor(now() / 3600)}`, 3700) > L.novaPerHour) return tooMany('Photo checks are paused for a bit. Describe the problem in words instead.');
+    const grant = { user: { sub: `console:${sh}` }, scope: 'fixwise.read fixwise.act', client_id: 'console', family: `console-${sh}` };
+    const dkey = `dlg:${sh}`; const dialog = (await kvGet(env, dkey)) || {};
+    const client = await mcpClient(env, o, dialog, grant); client.timeoutMs = Number(env.PHOTO_TIMEOUT_MS || 9000);
+    const args = { image_base64: String(b.image_base64 || ''), media_type: String(b.media_type || ''), ...(b.note ? { note: String(b.note).slice(0, 300) } : {}) };
+    if (!client.ready) { try { await client.connect(); dialog.mcpReady = client.url; } catch { /* runCall falls back in-process */ } }
+    const d = await runCall(env, client, grant, { tool: 'fixwise_diagnose_photo', args }, ctx);
+    const speech = d.error ? 'Sorry, I could not look at that photo.' : d.result?.content?.[0]?.text || '';
+    const sc = d.result?.structuredContent || {};
+    if (sc.needsArea) dialog.awaitingArea = true;
+    dialog.lastTool = 'fixwise_diagnose_photo';
+    dialog.hist = [...(dialog.hist || []), { u: `[photo]${args.note ? ' ' + args.note : ''}`, a: speech.slice(0, 300) }].slice(-4);
+    await kvPut(env, dkey, dialog, 86400);
+    const dx = sc.diagnosis;
+    return json({ speech, planner: 'nova-lite-vision', plannerMs: dx?.ms || 0, tokens: dx?.tokens || null, totalMs: Date.now() - t0,
+      calls: [{ tool: 'fixwise_diagnose_photo', args: { media_type: args.media_type, image_base64: `<${Math.round(args.image_base64.length * 0.75 / 1024)} KB>`, ...(args.note ? { note: args.note } : {}) }, ms: d.ms, transport: d.transport, isError: !!(d.error || d.result?.isError) }],
+      tool: 'fixwise_diagnose_photo', isError: !!(d.error || d.result?.isError),
+      card: d.result?._meta?.ui?.resourceUri ? { uri: d.result._meta.ui.resourceUri, data: sc } : null, awaitingYes: !!dialog.pendingApproval, awaitingArea: !!dialog.awaitingArea });
   }
   if (path === '/console/api/say' && req.method === 'POST') {
     let b; try { b = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }

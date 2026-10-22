@@ -7,6 +7,10 @@ export const TOOLS = [
     description: 'Use when the customer describes something broken at home (geyser, burst pipe or dripping tap, tripping power, roof leak, blocked drain, gate, fridge or other appliance; several at once is fine) and/or on their street (street light, pothole, water main, live wire, dumping). Gives safety steps first, logs the public part with the municipality and returns priced repair quotes for the private part. Read the safety steps out before anything else.',
     inputSchema: s({ description: { type: 'string', minLength: 3, maxLength: 1000, description: "The customer's own words." }, area: { type: 'string', maxLength: 80, description: 'Suburb or street, if said.' } }, ['description']),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true } },
+  { name: 'fixwise_diagnose_photo', title: 'Diagnose a problem from a photo', scope: 'fixwise.act', ui: 'ui://fixwise/diagnosis',
+    description: 'Use when the customer sends a photo of something broken (a leak, a fault, a pothole). Amazon Nova Lite looks at the photo, then Fixwise gives safety steps first, logs any municipal part and returns priced quotes, exactly like fixwise_report_problem. The image is not stored. If the photo is unclear it asks the customer to describe the problem.',
+    inputSchema: s({ image_base64: { type: 'string', minLength: 200, maxLength: 2100000, description: 'The photo, base64 encoded (max 1.5 MB).' }, media_type: { type: 'string', enum: ['image/jpeg', 'image/png', 'image/webp'], maxLength: 12 }, note: { type: 'string', maxLength: 300, description: 'Anything the customer said with the photo.' }, area: { type: 'string', maxLength: 80 } }, ['image_base64', 'media_type']),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true } },
   { name: 'fixwise_check_status', title: 'Check on an issue', scope: 'fixwise.read', ui: 'ui://fixwise/issue',
     description: 'Use when the customer asks for news or progress ("any news on the geyser?", "is the street light fixed?"). Works across sessions and days.',
     inputSchema: s(issueArg), annotations: { readOnlyHint: true, openWorldHint: false } },
@@ -49,7 +53,7 @@ export function validateArgs(tool, args) {
   for (const r of sc.required || []) if (args[r] === undefined) return `${r} is required`;
   for (const [k, v] of Object.entries(args)) {
     const p = sc.properties[k]; if (!p) return `unknown argument ${k}`;
-    if (p.type === 'string') { if (typeof v !== 'string') return `${k} must be a string`; if (p.maxLength && v.length > p.maxLength) return `${k} is too long`; if (p.minLength && v.trim().length < p.minLength) return `${k} is too short`; }
+    if (p.type === 'string') { if (typeof v !== 'string') return `${k} must be a string`; if (p.enum && !p.enum.includes(v)) return `${k} must be one of ${p.enum.join(', ')}`; if (p.maxLength && v.length > p.maxLength) return `${k} is too long`; if (p.minLength && v.trim().length < p.minLength) return `${k} is too short`; }
     if (p.type === 'integer' && !(Number.isInteger(v) && (p.minimum == null || v >= p.minimum) && (p.maximum == null || v <= p.maximum))) return `${k} must be an integer in range`;
     if (p.type === 'number' && !(typeof v === 'number' && Number.isFinite(v) && (p.minimum == null || v >= p.minimum) && (p.maximum == null || v <= p.maximum))) return `${k} must be a number in range`;
     if (p.type === 'boolean' && typeof v !== 'boolean') return `${k} must be true or false`;

@@ -11,6 +11,11 @@ const STYLE = `:root{--bg:#0d1b1e;--card:#15292d;--ink:#eef6f4;--mut:#9dbab4;--a
 .row{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.big{font-size:34px;font-weight:800}
 .car{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}.q{min-width:240px;flex:1;scroll-snap-align:start;background:var(--card);border-radius:16px;padding:14px;border:2px solid transparent}
 .q.best{border-color:var(--acc)}.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:#24403f;color:var(--acc)}.over{color:var(--warn)}
+.dx{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}.ring{--p:0;width:84px;height:84px;border-radius:50%;background:conic-gradient(var(--acc) calc(var(--p)*1%),#24403f 0);display:grid;place-items:center}.ring b{width:66px;height:66px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:20px}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;margin-right:6px}.pill.emergency{background:#4a1d19;color:#ffb3a8}.pill.urgent{background:#4a3a16;color:#ffd58a}.pill.routine{background:#1d3b33;color:#9ff0c9}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;margin-top:12px;font-size:15px}.kv dt{color:var(--mut)}.kv dd{margin:0}
+@media(max-width:480px){body{font-size:15px;padding:10px}.t{font-size:21px}.big{font-size:26px}.dx{grid-template-columns:1fr}.kv{grid-template-columns:1fr}.kv dt{margin-top:6px}}
+@media(min-width:960px){.t{font-size:30px}}
 .sim{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;background:#2c3550;color:#b9c6ff;margin-left:6px}`;
 const SHELL = (title, render) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>${STYLE}</style></head>
 <body><div id="app"><div class="h">Fixwise</div><div class="card m">Loading…</div></div><script>
@@ -34,8 +39,18 @@ const QUOTES = `function(d){const q=d.quotes||[];return '<div class="m" style="m
 const APPROVAL = `function(d){const a=d.approval||d.booking||{};if(d.booking)return '<div class="card"><div class="t">Booked ✓</div><div>'+esc(a.supplier)+'</div><div class="m">'+esc(a.slot)+' · '+esc(a.total)+' · '+esc(a.reference)+'</div></div>';
 return '<div class="card"><div class="m">Waiting for your yes</div><div class="t">'+esc(a.supplier)+'</div><div class="big">'+esc(a.total)+'</div><div class="m">'+esc(a.slot)+' · pay on completion</div><div class="m" style="margin-top:10px">Say “yes, book it” or “no”. Expires '+(a.expiresAt?new Date(a.expiresAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'soon')+'.</div></div>';}`;
 
+const DIAG = `function(d){const x=d.diagnosis||{};const i=d.issue;const pc=Math.round((x.confidence||0)*100);
+let h='<div class="card"><div class="dx"><div class="ring" style="--p:'+pc+'" role="img" aria-label="Confidence '+pc+' percent"><b>'+pc+'%</b></div><div><div class="m">Seen by '+esc(x.model||'Nova Lite')+(x.ms?' · '+esc(x.ms)+' ms':'')+' · photo not stored</div><div class="t">'+esc(x.item?x.item.replace(/^./,c=>c.toUpperCase()):'Your photo')+'</div><span class="pill '+esc(x.severity)+'">'+esc(x.severity||'')+'</span>'+(x.trade?'<span class="pill routine">'+esc(x.trade)+'</span>':'')+'</div></div>';
+h+='<dl class="kv"><dt>What I see</dt><dd>'+esc(x.problem)+'</dd><dt>Likely cause</dt><dd>'+esc(x.likelyCause)+'</dd>'+(x.hazards&&x.hazards.length?'<dt>Hazards</dt><dd>'+x.hazards.map(esc).join(', ')+'</dd>':'')+'</dl></div>';
+if(d.needsWords)return h+'<div class="card m">Tell me in a few words what is broken and I will take it from there.</div>';
+if(i){if(i.safety&&i.safety.steps&&i.safety.steps.length)h+='<div class="card safety '+(i.safety.level==='urgent'?'urgent':'')+'" style="margin-top:10px"><b>'+(i.safety.level==='emergency'?'Emergency':'Do this first')+'</b><br>'+i.safety.steps.map(esc).join('<br>')+(i.safety.emergency?'<br><b>'+esc(i.safety.emergency)+'</b>':'')+'</div>';
+ if(i.case)h+='<div class="card"><div class="row"><b>'+esc(i.case.title)+' · '+esc(i.case.reference)+'</b><span class="sim">simulated feed</span></div><div class="m">'+esc(i.case.department)+'</div></div>';
+ if(i.home&&i.home.quotes.length){const q=i.home.quotes[0];h+='<div class="card row"><div><b>Best quote</b><div class="m">'+esc(q.supplier)+' · ~'+esc(q.etaHours)+' h · ★'+esc(q.rating)+'</div></div><div class="big">'+esc(q.total)+'</div></div>';}}
+return h;}`;
+
 export const RESOURCES = [
   { uri: 'ui://fixwise/issue', name: 'fixwise-issue', title: 'Issue timeline', description: 'Safety steps, municipal progress and the best quote for one or more issues.', html: SHELL('Fixwise issue', ISSUE) },
+  { uri: 'ui://fixwise/diagnosis', name: 'fixwise-diagnosis', title: 'Photo diagnosis', description: 'What Nova Lite sees in the customer photo, with confidence, safety steps and the best quote.', html: SHELL('Fixwise diagnosis', DIAG) },
   { uri: 'ui://fixwise/quotes', name: 'fixwise-quotes', title: 'Quote carousel', description: 'Side-by-side repair quotes.', html: SHELL('Fixwise quotes', QUOTES) },
   { uri: 'ui://fixwise/approval', name: 'fixwise-approval', title: 'Booking confirmation', description: 'The exact quote held for the customer to confirm.', html: SHELL('Fixwise confirm', APPROVAL) },
 ];

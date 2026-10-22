@@ -248,3 +248,31 @@ export async function attachAdvice(env, h, issueId, note) {
   await audit(h, 'agent', 'advice.attached', `${issueId} ${note.source}`);
   return true;
 }
+
+// Photo diagnosis. Nova Lite looks at the photo, then the diagnosis goes through the SAME safety triage, municipal
+// routing and quoting as a spoken report. Low confidence or a non-repair photo asks the customer instead of guessing.
+import { decodeImage, diagnoseImage } from './vision.js';
+const PHOTO_PER_HOUR = 12;
+export async function diagnosePhoto(env, h, args, ctx) {
+  const img = decodeImage(args.image_base64, args.media_type);
+  if (img.error) return err(img.error);
+  const hourKey = `lim:photo:${h.key}:${Math.floor(Date.now() / 3600000)}`;
+  if (await env.KV.incr(hourKey, 3700) > PHOTO_PER_HOUR) return err('That is a lot of photos this hour. Describe the problem in words instead, or try again later.');
+  let r;
+  try { r = await diagnoseImage(env, img, args.note || ''); }
+  catch { return err("I couldn't look at the photo just now. Tell me in a few words what's broken and I'll take it from there."); }
+  const dx = r.dx;
+  if (!dx) return err("I couldn't make sense of that photo. Tell me in a few words what's broken.");
+  const base = { diagnosis: { ...dx, model: 'Amazon Nova Lite', ms: r.ms, tokens: r.usage, imageSha256: img.sha256.slice(0, 16), stored: false } };
+  if (!dx.isRepairProblem || dx.confidence < 0.45 || !dx.description)
+    return say(`I can see ${dx.problem ? dx.problem.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase()) : 'the photo'}, but I'm not sure enough to call it a repair. What's broken, in a few words?`, { ...base, needsWords: true }, { ui: { resourceUri: 'ui://fixwise/diagnosis' } });
+  const desc = [dx.description, dx.hazards.join(', '), args.note].filter(Boolean).join('. ').slice(0, 1000);
+  const rep = await reportProblem(env, h, { description: desc, ...(args.area ? { area: args.area } : {}) }, ctx);
+  if (rep.structuredContent?.outOfScope)
+    return say(`From the photo it looks like ${dx.problem.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}. That isn't something Fixwise can quote yet. Tell me more and I'll try.`, { ...base, needsWords: true }, { ui: { resourceUri: 'ui://fixwise/diagnosis' } });
+  const issue = h.s.issues.find((x) => x.id === rep.structuredContent.issue.id);
+  if (issue) { issue.diagnosis = { problem: dx.problem, likelyCause: dx.likelyCause, confidence: dx.confidence, source: 'nova-lite-vision', imageSha256: img.sha256.slice(0, 16) }; issue.updates.push({ at: new Date().toISOString(), text: 'Diagnosed from a photo by Nova Lite' }); }
+  await audit(h, 'agent', 'photo.diagnosed', `${issue?.id || ''} conf ${dx.confidence} img ${img.sha256.slice(0, 16)}`);
+  const seen = `From your photo, it looks like ${dx.problem.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}. ${dx.likelyCause ? 'Likely cause: ' + dx.likelyCause.replace(/^./, (c) => c.toLowerCase()).replace(/\.?$/, '.') : ''}`.trim();
+  return say(`${seen} ${rep.content[0].text}`, { ...base, ...rep.structuredContent }, { ui: { resourceUri: 'ui://fixwise/diagnosis' } });
+}

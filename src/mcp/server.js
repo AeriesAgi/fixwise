@@ -21,7 +21,7 @@ async function overLimit(env, sub) {
 }
 
 const HANDLERS = {
-  fixwise_report_problem: fx.reportProblem, fixwise_check_status: fx.checkStatus, fixwise_list_issues: fx.listIssues,
+  fixwise_report_problem: fx.reportProblem, fixwise_diagnose_photo: fx.diagnosePhoto, fixwise_check_status: fx.checkStatus, fixwise_list_issues: fx.listIssues,
   fixwise_compare_quotes: fx.compareQuotes, fixwise_book_repair: fx.bookRepair, fixwise_cancel_booking: fx.cancelBooking,
   fixwise_close_issue: fx.closeIssue, fixwise_remember: fx.remember, fixwise_recall: fx.recall, fixwise_activity: fx.activity,
 };
