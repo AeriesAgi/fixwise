@@ -50,7 +50,7 @@ async def run(p, name, vp, mobile):
     r = await say('Any news on the geyser?'); check('Rate them' in r or 'rate' in r.lower(), 'rating asked after visit'); await shot('rate-ask')
     r = await say('Not fixed, 2 stars'); check("won't suggest them again" in r, 'low rating: supplier avoided'); await shot('rated')
     r = await say('Share this with my landlord'); c = await card()
-    check("can't send it" in r and 'Landlord view' in c, 'landlord link: shown, not sent'); await shot('landlord-card')
+    check("can't send it" in r and 'Landlord view' in c, 'landlord link: shown, not sent'); check(not re.search(r'Best quote[^\n]*\n?[^\n]*AquaFix', c), 'avoided supplier no longer shown as best quote'); await shot('landlord-card')
     url = await pg.frame_locator('#card').locator('.lnk').first.get_attribute('data-u')
     lp = await ctx.new_page(); resp = await lp.goto(url); txt = await lp.inner_text('body')
     check(resp.status == 200 and 'read-only' in txt, 'landlord page opens read-only')

@@ -338,7 +338,8 @@ export async function rateRepair(env, h, args) {
   i.updates.push({ at: i.booking.rating.at, text: `Rated ${who} ${stars}/5${isFixed ? ', fixed' : ', not fixed'}` });
   await audit(h, 'household', 'booking.rated', `${i.booking.reference} ${stars} ${isFixed}`);
   const bits = [`Thanks, ${stars} out of 5 for ${who} is saved.`];
-  if (stars <= 2) { const p = h.s.prefs; p.avoidSuppliers = [...new Set([...(p.avoidSuppliers || []), i.booking.supplier])]; bits.push(`I won't suggest them again.`); }
+  if (stars <= 2) { const p = h.s.prefs; p.avoidSuppliers = [...new Set([...(p.avoidSuppliers || []), i.booking.supplier])]; bits.push(`I won't suggest them again.`);
+    const bad = i.booking.supplierId; for (const x of h.s.issues) if (x.home?.quotes && (x === i || !x.booking) && x.state !== 'closed') { x.home.quotes = x.home.quotes.filter((q) => q.supplierId !== bad).map((q, k) => ({ ...q, rank: k + 1 })); if (x.home.quotes[0] && !x.home.quotes[0].tag) x.home.quotes[0].tag = 'Recommended'; } }
   if (isFixed) { if (!i.case || i.case.stageIndex >= 4) i.state = 'closed'; bits.push(`I've marked the ${shortTitle(i)} as fixed.`); }
   else { i.pastBookings = [...(i.pastBookings || []), i.booking].slice(-5); i.booking = null; bits.push(`I'll keep the ${shortTitle(i)} open. Want me to compare the other quotes?`); }
   return say(bits.join(' '), { rating: { stars, fixed: isFixed }, issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });

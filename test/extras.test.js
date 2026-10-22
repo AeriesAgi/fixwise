@@ -21,6 +21,7 @@ test('after the visit, status asks "did they fix it? rate them", a low score avo
   const r = await say('Not fixed, 2 stars'); assert.equal(r.planner, 'rating-guard');
   assert.match(r.speech, /2 out of 5 for AquaFix Plumbing is saved\. I won't suggest them again\. I'll keep the geyser open/);
   const q = await say('Compare the quotes'); assert.doesNotMatch(JSON.stringify(q.card?.data?.quotes || []), /AquaFix/); assert.ok(q.card.data.quotes.length >= 2);
+  assert.doesNotMatch(JSON.stringify(r.card?.data?.issue?.home?.quotes || []), /AquaFix/); // the issue card and landlord page must not name the avoided supplier as best
   const rb = await say('Book the first one'); assert.match(rb.speech, /^To confirm: Demo FlowRight/);
 });
 
