@@ -13,7 +13,7 @@ main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(340px,1fr);gap:2
 @media(max-width:900px){main{grid-template-columns:1fr}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.skip{position:absolute;left:-999px;top:8px;background:var(--acc);color:#05261b;padding:8px 12px;border-radius:8px;z-index:9}.skip:focus{left:8px}
 :focus-visible{outline:3px solid var(--alexa);outline-offset:2px}.trace .fb{color:#ffb454}.trace .pl{color:#b9c6ff}
-@container (max-height:480px){.cap{bottom:6px;left:12%;right:12%;-webkit-line-clamp:1;font-size:12px;padding:3px 10px;background:#000d}}
+@container (max-height:480px){.screen .cap{bottom:6px;left:12%;right:12%;-webkit-line-clamp:1;font-size:12px;padding:3px 10px;background:#000d}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .device{position:relative;background:#05080b;border-radius:30px;padding:18px;box-shadow:0 30px 80px #000a,inset 0 0 0 2px #1a2228}
 .screen{container-type:size;position:relative;background:#0d1b1e;border-radius:18px;aspect-ratio:16/10;overflow:hidden}
