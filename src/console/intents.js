@@ -21,6 +21,8 @@ export function route(utterance, dialog = {}) {
     if (typeof pick === 'number') args.rank = pick; else if (pick) args.pick = pick;
     if (book[2]) args.supplier = book[2].trim();
     const ih = issueHint(t); if (ih.issue) args.issue = ih.issue;
+    const tw = /\b((?:today|tonight|tomorrow|this|next|on)?\s?(?:morning|afternoon|evening|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend)(?: (?:morning|afternoon|evening))?)\b/.exec(t);
+    if (tw) args.time_window = tw[1].trim();
     return { tool: 'fixwise_book_repair', args };
   }
   if (has(t, /cancel (the |my )?(booking|plumber|electrician|appointment)/)) return { tool: 'fixwise_cancel_booking', args: {} };

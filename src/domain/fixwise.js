@@ -155,7 +155,7 @@ export async function bookRepair(env, h, args) {
     if (!q) return err('I could not find that quote. Ask me to compare quotes first.');
     if (h.s.prefs.budgetCapCents && q.totalCents > h.s.prefs.budgetCapCents && !args.over_budget_ok)
       return say(`That quote is ${spokenRand(q.totalCents)}, above your ${spokenRand(h.s.prefs.budgetCapCents)} limit. Say "book it anyway" if you're sure.`, { overBudget: true });
-    const slot = slotFor(q, h.s.prefs);
+    const slot = slotFor(q, h.s.prefs, args.time_window);
     const hold = { issue: i.id, supplierId: q.supplierId, totalCents: q.totalCents, slot };
     const a = { id: rid('AP'), digest: await sha256hex(JSON.stringify(hold)), hold, supplier: q.supplier, createdMs: Date.now(), expiresMs: Date.now() + APPROVAL_TTL_MS, state: 'pending' };
     h.s.approvals.push(a); h.s.approvals = h.s.approvals.slice(-50);
@@ -176,7 +176,9 @@ export async function bookRepair(env, h, args) {
   await audit(h, 'household', 'booking.confirmed', `${i.booking.reference} ${a.id}`);
   return say(`Booked. ${a.supplier} is coming ${a.hold.slot}. Your booking reference is ${spell(i.booking.reference)}. I'll keep an eye on the municipal side too.`, { booking: i.booking }, { ui: { resourceUri: 'ui://fixwise/approval' } });
 }
-function slotFor(q, prefs) {
+function slotFor(q, prefs, asked) {
+  const req = asked && String(asked).replace(/[^\w ,:'-]/g, '').trim().slice(0, 60);
+  if (req) return req;
   const when = prefs.timeWindow || (q.etaHours <= 6 ? 'today' : q.etaHours <= 24 ? 'tomorrow morning' : 'within two days');
   return q.etaHours <= 6 && !prefs.timeWindow ? `today, within about ${q.etaHours} hours` : `${when}`;
 }
