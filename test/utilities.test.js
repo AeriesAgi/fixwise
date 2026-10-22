@@ -75,3 +75,11 @@ test('MCP escalate needs a lapsed SLA and an explicit confirm', async () => {
   const r = await c.tool('fixwise_report_problem', { description: 'raw sewage running down the road', area: 'Melville' });
   const e = await c.tool('fixwise_escalate', { issue: r.structuredContent.issue.id, confirm: true }); assert.match(e.content[0].text, /too early/);
 });
+
+test('an area outage does not also quote an electrician; case references work spoken with spaces', async () => {
+  const env = await makeEnv(); const { tok } = await link(env); const c = mcpClient(env, tok.access_token);
+  const r = await c.tool('fixwise_report_problem', { description: 'no power in the whole street', area: 'Melville' });
+  assert.equal(r.structuredContent.issues.length, 1); assert.equal(r.structuredContent.issue.home, null);
+  const ref = r.structuredContent.issue.case.reference.replace('-', ' ');
+  const s = await c.tool('fixwise_check_status', { issue: ref }); assert.match(s.content[0].text, /Municipal case/);
+});

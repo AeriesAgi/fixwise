@@ -43,8 +43,8 @@ function caseView(env, c) {
 function findIssue(h, ref) {
   const open = h.s.issues.filter((i) => i.state !== 'closed');
   if (!ref) return open[open.length - 1] || h.s.issues[h.s.issues.length - 1] || null;
-  const r = String(ref).toLowerCase();
-  return h.s.issues.find((i) => i.id.toLowerCase() === r || i.case?.reference.toLowerCase() === r)
+  const r = String(ref).toLowerCase(); const norm = (x) => String(x || '').toLowerCase().replace(/[\s-]+/g, '');
+  return h.s.issues.find((i) => i.id.toLowerCase() === r || norm(i.case?.reference) === norm(r) || norm(i.id) === norm(r))
     || pickMatch(h.s.issues.filter((i) => i.home && (i.home.title.toLowerCase().includes(r) || jobKeywords(i.home.code).some((k) => k.includes(r) || r.includes(k)))))
     || pickMatch(h.s.issues.filter((i) => i.case?.title.toLowerCase().includes(r)))
     || pickMatch(h.s.issues.filter((i) => i.summary.toLowerCase().includes(r)));
@@ -89,6 +89,7 @@ export async function reportProblem(env, h, args, ctx) {
   delete h.s.awaitingScope;
   const homes = classifyHomeAll(description);
   if (/^HOUSE\.POWER$/.test(classifyPublic(description, args.scope)?.scope || '') && !homes.some((j) => j.code === 'HOME.ELECTRICAL')) homes.unshift(HOME.jobTypes.find((j) => j.code === 'HOME.ELECTRICAL'));
+  if (pub && /^ELEC\.(AREA_OUTAGE|SUBSTATION_TRIP|CABLE_THEFT|LIVE_WIRE_DOWN)$/.test(pub.code)) { const k = homes.findIndex((j) => j.code === 'HOME.ELECTRICAL'); if (k >= 0) homes.splice(k, 1); } // an area outage is not a job for your electrician
   if (houseWater && !homes.length) return say("If your neighbours have water, the problem is on your side of the meter. Check the stopcock at the meter is fully open and look for wet patches or a hissing pipe. If it's still off, tell me it's a leaking pipe and I'll get plumber quotes.", { householdWater: true });
   if (!pub && !homes.length && safety.level === 'routine') return say(OUT_OF_SCOPE, { understood: false, outOfScope: true });
   const mk = () => ({ id: rid('FX'), summary: description.slice(0, 280), area, createdMs: Date.now(), state: 'open', safety, updates: [] });
