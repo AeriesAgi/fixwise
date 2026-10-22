@@ -216,12 +216,13 @@ export async function bookRepair(env, h, args, ctx) {
     if (h.s.prefs.budgetCapCents && q.totalCents > h.s.prefs.budgetCapCents && !args.over_budget_ok)
       return say(`That quote is ${spokenRand(q.totalCents)}, above your ${spokenRand(h.s.prefs.budgetCapCents)} limit. Shall I book it anyway?`, { overBudget: true });
     const slot = slotFor(q, h.s.prefs, args.time_window);
-    const hold = { issue: i.id, supplierId: q.supplierId, totalCents: q.totalCents, slot };
+    const visit = visitWindow(slot);
+    const hold = { issue: i.id, supplierId: q.supplierId, totalCents: q.totalCents, slot: visit.label, visit };
     const a = { id: rid('AP'), digest: await sha256hex(JSON.stringify(hold)), hold, supplier: q.supplier, createdMs: Date.now(), expiresMs: Date.now() + APPROVAL_TTL_MS, state: 'pending' };
     h.s.approvals.push(a); h.s.approvals = h.s.approvals.slice(-50);
     await audit(h, 'agent', 'booking.held', `${a.id} ${q.supplierId} ${q.totalCents}`);
-    return say(`To confirm: ${q.supplier}, ${slot}, ${spokenRand(q.totalCents)} including VAT, paid on completion. Shall I book it?`,
-      { approval: { id: a.id, supplier: q.supplier, slot, total: rand(q.totalCents), expiresAt: new Date(a.expiresMs).toISOString(), needs: 'Call fixwise_book_repair again with approval_id and confirm=true only after the customer says yes.' } },
+    return say(`To confirm: ${q.supplier}, ${spokenWindow(visit)}, ${spokenRand(q.totalCents)} including VAT, paid on completion. Shall I book it?`,
+      { approval: { id: a.id, supplier: q.supplier, slot: visit.label, total: rand(q.totalCents), expiresAt: new Date(a.expiresMs).toISOString(), needs: 'Call fixwise_book_repair again with approval_id and confirm=true only after the customer says yes.' } },
       { ui: { resourceUri: 'ui://fixwise/approval' } });
   }
   const a = h.s.approvals.find((x) => x.id === args.approval_id && x.hold.issue === i.id);
@@ -232,7 +233,7 @@ export async function bookRepair(env, h, args, ctx) {
   a.state = 'redeemed';
   i.booking = { reference: rid('BK'), supplier: a.supplier, supplierId: a.hold.supplierId, slot: a.hold.slot, total: rand(a.hold.totalCents), totalCents: a.hold.totalCents,
     payment: 'Pay on completion. Fixwise does not take card details.', simulated: true, note: 'Synthetic supplier; booking is simulated for the demo.' };
-  const visit = visitWindow(a.hold.slot);
+  const visit = a.hold.visit || visitWindow(a.hold.slot);
   const ev = { ref: i.booking.reference, start: visit.start, end: visit.end, area: i.area || '', title: `${a.supplier}: ${(i.home && i.home.title) || 'repair visit'}`, desc: `Fixwise booking ${i.booking.reference}. ${i.booking.total} incl. VAT, pay on completion. Demo booking with a synthetic supplier.` };
   i.booking.visit = { ...visit, ics: ctx?.origin ? icsLink(env, ctx.origin, ev) : null };
   i.booking.reminder = { suggested: true, at: new Date(Date.parse(visit.start) - 3600e3).toISOString(), text: `${a.supplier} arrives ${visit.label}`, note: 'Suggestion only. Add the calendar file to get the alert; Fixwise does not set Alexa reminders.' };

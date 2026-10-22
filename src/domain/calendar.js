@@ -12,21 +12,28 @@ const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 
 
 // Local SAST midnight of the day `add` days after nowMs, as UTC ms.
 const dayStart = (nowMs, add) => { const l = new Date(nowMs + SAST); return Date.UTC(l.getUTCFullYear(), l.getUTCMonth(), l.getUTCDate() + add) - SAST; };
-const part = (s) => /morning/.test(s) ? [8, 12] : /afternoon/.test(s) ? [12, 17] : /evening/.test(s) ? [17, 20] : [8, 17];
 const ceilHalf = (ms) => Math.ceil(ms / (H / 2)) * (H / 2);
 
+// Trades work 07:00-17:00 Monday to Saturday (SAST). A same-day visit is offered only when it can start before 15:00;
+// otherwise the next working morning. Evening or Sunday requests move to the next working slot.
+const OPEN = 7, CLOSE = 17, LAST_SAME_DAY = 15;
+const dow = (ms) => new Date(ms + SAST).getUTCDay();
+function nextWorkDay(nowMs, add) { let a = add; while (dow(dayStart(nowMs, a) + 12 * H) === 0) a++; return dayStart(nowMs, a); }
 export function visitWindow(slot, nowMs = Date.now()) {
   const s = String(slot || '').toLowerCase();
   let start, end;
-  const within = s.match(/within (?:about )?(\d+) hours?/);
-  if (within) { start = ceilHalf(nowMs + H / 2); end = Math.max(ceilHalf(nowMs + Number(within[1]) * H), start + 2 * H); }
-  else {
+  const urgent = /within (?:about )?\d+ hours?|\b(today|asap|now|urgent)\b/.test(s);
+  const sameDayStart = Math.max(ceilHalf(nowMs + H / 2), dayStart(nowMs, 0) + OPEN * H);
+  if (urgent && dow(nowMs) !== 0 && sameDayStart <= dayStart(nowMs, 0) + LAST_SAME_DAY * H) {
+    start = sameDayStart; end = Math.min(start + 3 * H, dayStart(nowMs, 0) + CLOSE * H);
+  } else {
     let add = 1;
-    if (/\btoday\b/.test(s)) add = 0; else if (/within two days/.test(s)) add = 2;
+    if (/within two days/.test(s)) add = 2;
     const d = DAYS.findIndex((x) => s.includes(x));
-    if (d >= 0) { const cur = new Date(nowMs + SAST).getUTCDay(); add = ((d - cur + 7) % 7) || 7; }
-    const [a, b] = part(s); start = dayStart(nowMs, add) + a * H; end = dayStart(nowMs, add) + b * H;
-    if (end <= nowMs) { start += 86400e3; end += 86400e3; }
+    if (d >= 0) { const cur = dow(nowMs); add = ((d - cur + 7) % 7) || 7; }
+    const base = nextWorkDay(nowMs, add);
+    const [a, b] = /afternoon|evening|night/.test(s) ? [12, CLOSE] : [OPEN, 12];
+    start = base + a * H; end = base + b * H;
   }
   const fmt = (ms, o) => new Intl.DateTimeFormat('en-ZA', { timeZone: 'Africa/Johannesburg', ...o }).format(new Date(ms));
   const label = `${fmt(start, { weekday: 'short', day: 'numeric', month: 'short' })}, ${fmt(start, { hour: '2-digit', minute: '2-digit', hour12: false })}–${fmt(end, { hour: '2-digit', minute: '2-digit', hour12: false })} SAST`;

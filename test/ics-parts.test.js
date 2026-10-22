@@ -5,12 +5,29 @@ import { visitWindow, buildIcs } from '../src/domain/calendar.js';
 
 const T = Date.UTC(2026, 9, 22, 13, 0); // Thu 22 Oct 2026, 15:00 SAST
 
-test('visit windows are concrete SAST times', () => {
-  assert.equal(visitWindow('tomorrow morning', T).start, '2026-10-23T06:00:00.000Z');
-  assert.equal(visitWindow('tomorrow morning', T).end, '2026-10-23T10:00:00.000Z');
-  const w = visitWindow('today, within about 3 hours', T); assert.equal(w.start, '2026-10-22T13:30:00.000Z'); assert.equal(w.end, '2026-10-22T16:00:00.000Z');
-  assert.equal(visitWindow('Saturday afternoon', T).start, '2026-10-24T10:00:00.000Z');
-  assert.match(visitWindow('tomorrow morning', T).label, /Fri.*23 Oct.*08:00–12:00 SAST/);
+const at = (iso) => Date.parse(iso); // helper: an instant
+const sast = (w) => [w.start, w.end].map((x) => { const d = new Date(Date.parse(x) + 2 * 3600e3); return d.getUTCDay() + ' ' + String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); }).join('-');
+
+test('visit windows are realistic trade hours (07:00-17:00 Mon-Sat SAST), never evenings or Sundays', () => {
+  // Thu 22 Oct 2026 10:00 SAST, urgent: same day, starts within 30 min
+  assert.equal(sast(visitWindow('today, within about 3 hours', at('2026-10-22T08:00:00Z'))), '4 10:30-4 13:30');
+  // Thu 14:20 SAST, urgent: still same day, ends by 17:00
+  assert.equal(sast(visitWindow('today, within about 3 hours', at('2026-10-22T12:20:00Z'))), '4 15:00-4 17:00');
+  // Thu 18:15 SAST, urgent: too late, next working morning
+  assert.equal(sast(visitWindow('today, within about 3 hours', at('2026-10-22T16:15:00Z'))), '5 07:00-5 12:00');
+  // Sat 16:00 urgent -> Monday morning (Sunday skipped)
+  assert.equal(sast(visitWindow('today, within about 2 hours', at('2026-10-24T14:00:00Z'))), '1 07:00-1 12:00');
+  // Sunday 09:00 urgent -> Monday
+  assert.equal(sast(visitWindow('asap', at('2026-10-25T07:00:00Z'))), '1 07:00-1 12:00');
+  // early morning urgent starts at opening
+  assert.equal(sast(visitWindow('today', at('2026-10-22T03:00:00Z'))), '4 07:00-4 10:00');
+  assert.equal(sast(visitWindow('tomorrow morning', at('2026-10-22T13:00:00Z'))), '5 07:00-5 12:00');
+  assert.equal(sast(visitWindow('Saturday evening', at('2026-10-22T13:00:00Z'))), '6 12:00-6 17:00');
+  assert.equal(sast(visitWindow('Sunday', at('2026-10-22T13:00:00Z'))), '1 07:00-1 12:00');
+  for (let h = 0; h < 24 * 8; h += 1) for (const sl of ['today, within about 3 hours', 'tomorrow', 'within two days', 'friday evening']) {
+    const w = visitWindow(sl, at('2026-10-19T00:00:00Z') + h * 3600e3); const [a, b] = sast(w).split('-');
+    assert.ok(a[0] !== '0' && a.slice(2) >= '07:00' && b.slice(2) <= '17:00' && Date.parse(w.start) > at('2026-10-19T00:00:00Z') + h * 3600e3, `${sl} @${h}: ${sast(w)}`);
+  }
   const ics = buildIcs({ ref: 'BK-1', start: '2026-10-23T06:00:00.000Z', end: '2026-10-23T10:00:00.000Z', title: 'A, b; c', desc: 'x' });
   assert.match(ics, /DTSTART:20261023T060000Z\r\n/); assert.match(ics, /SUMMARY:A\\, b\\; c/); assert.match(ics, /BEGIN:VALARM/);
 });
