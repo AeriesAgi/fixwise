@@ -66,6 +66,7 @@ export function sanitize(calls, tools, text = '') {
     for (const [k, v] of Object.entries(a)) if (v === null || v === '') delete a[k];
     // A place must be one the customer actually named ("Parkhurst", "Jan Smuts Avenue"), not "street" or "outside".
     if (c.name === 'fixwise_report_problem' && a.area && !placeNamed(a.area, text)) delete a.area;
+    if (c.name === 'fixwise_report_problem' && a.scope && !/\b(neighbou?rs?|whole|everyone|everybody|entire|the area|just (us|me|our)|only (us|me|our)|tripped)\b/i.test(text)) delete a.scope; // the customer must say it, not the model
     if (c.name === 'fixwise_book_repair' && !a.pick && !a.supplier) { const m = /\b(cheapest|fastest|quickest)\b/i.exec(text); if (m) { a.pick = m[1].toLowerCase() === 'quickest' ? 'fastest' : m[1].toLowerCase(); delete a.rank; } }
     return { tool: c.name, args: a };
   }).filter((c) => c.tool !== 'fixwise_remember' || REMEMBER_ASK.test(text)); // the model may not re-save old preferences unasked

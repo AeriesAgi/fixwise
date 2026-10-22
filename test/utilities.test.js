@@ -44,3 +44,10 @@ test('console: the neighbours answer is decided in code and logs the outage', as
   const a = await say('the power is off'); assert.match(a.speech, /neighbours off too/);
   const b = await say('yes, the whole street is off'); assert.equal(b.planner, 'scope-guard'); assert.match(b.speech, /unplanned power outage/);
 });
+
+test('planner may not guess the outage scope the customer did not state', async () => {
+  const { sanitize } = await import('../src/console/planner.js');
+  const tools = [{ name: 'fixwise_report_problem' }];
+  assert.equal(sanitize([{ name: 'fixwise_report_problem', input: { description: 'the power is off', scope: 'area' } }], tools, 'the power is off')[0].args.scope, undefined);
+  assert.equal(sanitize([{ name: 'fixwise_report_problem', input: { description: 'no power', scope: 'area' } }], tools, 'no power in the whole street')[0].args.scope, 'area');
+});
