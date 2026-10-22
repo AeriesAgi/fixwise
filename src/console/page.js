@@ -6,7 +6,7 @@ export function consolePage() {
 <style>
 :root{--bg:#070d12;--panel:#0f1a21;--ink:#eef6f4;--mut:#a9c2c3;--acc:#3ddc97;--alexa:#1ec8ff;--line:#1c2c35}
 *{box-sizing:border-box}html,body{margin:0;height:100%}body{font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(1200px 600px at 20% -10%,#12303a 0,transparent 60%),var(--bg);color:var(--ink)}
-header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px}.logo,.hdr-r .reset,#skip{white-space:nowrap}.logo{margin-right:16px}.hdr-r{gap:8px}
 .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:18px;letter-spacing:.01em}.logo i{width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,var(--acc),#13a8a0);display:inline-block}
 .badge{font-size:12px;color:#b9c6ff;background:#1d2546;border:1px solid #2e3a6b;padding:5px 10px;border-radius:99px}
 main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(340px,1fr);gap:24px;padding:0 28px 28px;max-width:1400px;margin:0 auto}
