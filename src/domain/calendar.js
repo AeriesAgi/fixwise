@@ -70,3 +70,11 @@ export function partsFor(code) {
   return (PARTS.jobs[code] || []).map((p) => ({ ...p, url: `https://www.amazon.co.za/s?k=${encodeURIComponent(p.query)}` }));
 }
 export const PARTS_NOTE = PARTS.note;
+
+// No load-shedding schedule feed is legally usable here (EskomSePush's free tier is personal, non-commercial use only),
+// so this is a generic tip, never a claim about the area's actual stage or slot.
+const NEEDS_POWER = new Set(['HOME.GEYSER', 'HOME.ELECTRICAL', 'HOME.GATE', 'HOME.APPLIANCE']);
+export function loadSheddingTip(code) {
+  if (!NEEDS_POWER.has(code)) return null;
+  return { tip: "If load-shedding is on, check your area's schedule for the visit day. This job needs power to test, so ask them to come outside your slot.", source: 'generic tip, not live schedule data' };
+}

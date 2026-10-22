@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { makeEnv, call, newSessionFor } from './helpers.js';
+import { parseRating } from '../src/domain/fixwise.js';
+
+const sayer = (env, label) => { const sid = newSessionFor(label); return { sid, say: async (text) => (await call(env, '/console/api/say', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid, text }) })).json() }; };
+
+test('parseRating understands spoken ratings', () => {
+  assert.deepEqual(parseRating('Yes, fixed. 5 stars'), { stars: 5, fixed: true });
+  assert.deepEqual(parseRating('not fixed, two out of five'), { stars: 2, fixed: false });
+  assert.deepEqual(parseRating('four'), { stars: 4, fixed: null });
+});
+
+test('after the visit, status asks "did they fix it? rate them", a low score avoids the supplier next time', async () => {
+  const env = await makeEnv(); const { sid, say } = sayer(env, 'ratingflow0001');
+  await say('My geyser is leaking in Melville'); await say('Book the best one'); const b = await say('Yes, book it');
+  assert.match(b.speech, /^Booked\./);
+  const before = await say('Any news on the geyser?'); assert.doesNotMatch(before.speech, /Rate them/);
+  await call(env, '/console/api/skip-ahead', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid, hours: 96 }) });
+  const ask = await say('Any news on the geyser?'); assert.match(ask.speech, /visit is done\. Did they fix the geyser\? Rate them 1 to 5\./); assert.equal(ask.awaitingRating, true);
+  const r = await say('Not fixed, 2 stars'); assert.equal(r.planner, 'rating-guard');
+  assert.match(r.speech, /2 out of 5 for AquaFix Plumbing is saved\. I won't suggest them again\. I'll keep the geyser open/);
+  const q = await say('Compare the quotes'); assert.doesNotMatch(JSON.stringify(q.card?.data?.quotes || []), /AquaFix/); assert.ok(q.card.data.quotes.length >= 2);
+  const rb = await say('Book the first one'); assert.match(rb.speech, /^To confirm: Demo FlowRight/);
+});
+
+test('booking carries a generic load-shedding tip (not live data); "why is it more?" explains the price and the saving', async () => {
+  const env = await makeEnv(); const { say } = sayer(env, 'explainflow0001');
+  await say('My geyser is leaking in Melville');
+  const e = await say('Why is the first one more expensive?'); assert.equal(e.planner, 'explain-guard');
+  assert.match(e.speech, /^AquaFix Plumbing costs R690 more than Budget Pipes, mostly .+\. They come in about 3 hours, not 24 and are rated 4\.8, not 3\.9\. If waiting is fine, Budget Pipes saves you R690\.$/);
+  assert.ok(e.speech.split(/\s+/).length <= 40); assert.ok(e.card.data.explain.rows.length >= 3);
+  await say('Book the best one'); const b = await say('Yes, book it');
+  assert.match(b.card.data.booking.loadShedding.tip, /check your area's schedule/); assert.match(b.card.data.booking.loadShedding.source, /not live/);
+  assert.doesNotMatch(b.speech, /load-shedding|stage/i);
+});

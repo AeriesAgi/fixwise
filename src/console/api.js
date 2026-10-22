@@ -1,6 +1,7 @@
 // Console backend: one anonymous demo household per browser session id. Same tools, same rules as Alexa+.
 // Each turn: Nova Lite (Bedrock Converse, tool use) plans -> MCP client calls the live /mcp over HTTP -> speech + MCP Apps card.
 // Fallbacks: regex router if Bedrock is off/slow/failing; in-process tool call if the HTTP hop to /mcp fails.
+import { parseRating } from '../domain/fixwise.js';
 import { route, rememberArgs } from './intents.js';
 import { plan, sanitize } from './planner.js';
 import { McpHttpClient } from './mcp-client.js';
@@ -100,7 +101,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     const sid = String(b.sid || ''); if (!verifySession(env, sid)) return json({ error: 'bad_session' }, 400);
     const hours = Math.min(96, Math.max(1, Number(b.hours) || 48)); const ms = hours * 3600000;
     const h = await loadHousehold(env, `console:${await sha256(sid)}`);
-    for (const i of h.s.issues) { i.createdMs -= ms; if (i.case) { i.case.createdMs -= ms; if (i.case.escalatedMs) i.case.escalatedMs -= ms; } }
+    for (const i of h.s.issues) { i.createdMs -= ms; if (i.booking?.visit) { i.booking.visit.start = new Date(Date.parse(i.booking.visit.start) - ms).toISOString(); i.booking.visit.end = new Date(Date.parse(i.booking.visit.end) - ms).toISOString(); } if (i.case) { i.case.createdMs -= ms; if (i.case.escalatedMs) i.case.escalatedMs -= ms; } }
     h.s.demoClockHours = (h.s.demoClockHours || 0) + hours;
     await saveHousehold(env, h);
     return json({ ok: true, hours, totalHours: h.s.demoClockHours });
@@ -175,6 +176,11 @@ export async function routeConsole(req, env, url, path, ctx) {
       await kvPut(env, dkey, dialog, 86400);
       return json({ speech: "Here it is.", planner: 'show-guard', calls: [], tool: dialog.lastTool || null, totalMs: Date.now() - t0, card: dialog.lastCard, awaitingYes: !!dialog.pendingApproval });
     }
+    else if (dialog.pendingRating && (() => { const r = parseRating(text); return r.stars || r.fixed !== null; })()) { // "did they fix it? rate them 1 to 5" is answered in code
+      planner = 'rating-guard'; const r = parseRating(text); calls = [{ tool: 'fixwise_rate_repair', args: { issue: dialog.pendingRating, ...(r.stars ? { stars: r.stars } : {}), ...(r.fixed !== null ? { fixed: r.fixed } : {}) } }];
+    }
+    else if (/\b(rate|rating)\b.*\b(plumber|electrician|contractor|them|him|her|supplier|repair|job)\b|\b[1-5] stars?\b/i.test(text)) { planner = 'rating-guard'; const r = parseRating(text); calls = [{ tool: 'fixwise_rate_repair', args: { ...(r.stars ? { stars: r.stars } : {}), ...(r.fixed !== null ? { fixed: r.fixed } : {}) } }]; }
+    else if (/\b(why|explain|break ?down|what am i paying|how (can|do) i save|cheaper option)\b/i.test(text) && /\b(price|cost|expensive|more|quote|pay|save|cheaper|charge)/i.test(text)) { planner = 'explain-guard'; calls = [{ tool: 'fixwise_compare_quotes', args: { explain: true } }]; }
     else if (dialog.pendingEscalation && YESNO.test(text)) { // "want me to escalate?" -> yes/no decided in code
       planner = 'confirmation-guard'; const id = dialog.pendingEscalation; delete dialog.pendingEscalation;
       if (!/\b(yes|yeah|yep|sure|go ahead|do it|confirm|please do)\b/i.test(text)) { await kvPut(env, dkey, dialog, 86400); return json({ speech: "Okay, I won't escalate it yet. I'll keep watching the case.", planner, calls: [], totalMs: Date.now() - t0 }); }
@@ -216,6 +222,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     // 3. Dialogue state for the next turn.
     for (const d of done) {
       const sc = d.result?.structuredContent || {};
+      if (sc.offerRating) dialog.pendingRating = sc.offerRating.issue; else if (d.tool !== 'fixwise_check_status' || sc.rating) delete dialog.pendingRating;
       if (sc.offerEscalation) dialog.pendingEscalation = sc.offerEscalation.issue; else delete dialog.pendingEscalation;
       if (sc.approval) dialog.pendingApproval = sc.approval.id; else if (d.tool === 'fixwise_book_repair') delete dialog.pendingApproval;
       if (d.tool === 'fixwise_book_repair' && sc.overBudget) dialog.pendingOverBudget = Object.fromEntries(Object.entries(d.args || {}).filter(([k]) => ['issue', 'rank', 'pick', 'supplier', 'time_window'].includes(k)));
@@ -237,7 +244,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     return json({ speech, planner, plannerMs, tokens, fallbackReason, totalMs: Date.now() - t0,
       calls: done.map((d) => ({ tool: d.tool, args: d.args, ms: d.ms, transport: d.transport, isError: !!(d.error || d.result?.isError) })),
       tool: first.tool || null, args: first.args, ms: first.ms, isError: done.some((d) => d.error || d.result?.isError),
-      card: withCard ? { uri: withCard.result._meta.ui.resourceUri, data: withCard.result.structuredContent || {} } : null, awaitingYes: !!dialog.pendingApproval, awaitingArea: !!dialog.awaitingArea });
+      card: withCard ? { uri: withCard.result._meta.ui.resourceUri, data: withCard.result.structuredContent || {} } : null, awaitingYes: !!dialog.pendingApproval, awaitingArea: !!dialog.awaitingArea, awaitingRating: !!dialog.pendingRating });
   }
   return null;
 }

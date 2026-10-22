@@ -4,7 +4,7 @@ import { HOME, classifyHomeAll, priceQuotes, isAvoided, rand, spokenRand } from 
 import { triage } from './safety.js';
 import { searchMemory } from './memory-search.js';
 import { sha256, sha256hex } from '../util.js';
-import { visitWindow, icsLink, partsFor, PARTS_NOTE } from './calendar.js';
+import { visitWindow, icsLink, partsFor, PARTS_NOTE, loadSheddingTip } from './calendar.js';
 
 const UTILITY_SAFETY = {
   'ELEC.AREA_OUTAGE': { steps: ['Switch off your geyser, pool pump and sensitive electronics, so the surge when power returns does not damage them.', 'Never go near a fallen or cut cable. If one is sparking, call 112.'] },
@@ -168,12 +168,27 @@ export async function checkStatus(env, h, args) {
     else if (sla?.lapsed) { bits.push(`It's been ${hrs(sla.elapsedMinutes)}, past the ${hrs(sla.targetMinutes).replace(/ hours$/, '-hour').replace(/ minutes$/, '-minute')} target. Want me to escalate it to your ward councillor?`); offer = { issue: i.id }; }
   }
   if (focus !== 'case') {
-    if (i.booking) bits.push(`${i.booking.supplier.replace(/^Demo /, '')} is booked, ${i.booking.slot}.`);
+    const who = i.booking && i.booking.supplier.replace(/^Demo /, '');
+    if (i.booking?.rating) bits.push(`${who} visited. You rated them ${i.booking.rating.stars} out of 5${i.booking.rating.fixed ? ', fixed' : ', not fixed yet'}.`);
+    else if (i.booking && visitDone(i.booking)) { bits.push(`${who}'s visit is done. Did they fix the ${shortTitle(i)}? Rate them 1 to 5.`); offer = null; i.awaitRating = true; }
+    else if (i.booking) bits.push(`${who} is booked, ${i.booking.visit ? spokenWindow(i.booking.visit) : i.booking.slot}.`);
     else if (i.home?.quotes.length) bits.push(`The ${i.home.title.toLowerCase().replace(/ or .*$/, '')} isn't booked yet. Best quote is ${spokenRand(i.home.quotes[0].totalCents)}.`);
     if (i.advisorNote && i.home && !bits.some((b) => /past the/.test(b))) bits.push(i.advisorNote.spoken);
   }
   const pi = publicIssue(env, i); if (focus === 'case') { pi.home = null; pi.booking = null; pi.advisorNote = null; pi.tracker = trackerView(env, { ...i, home: null, booking: null }); } else if (focus === 'home') { pi.case = null; pi.tracker = trackerView(env, { ...i, case: null }); }
-  return say(bits.join(' ') || 'No updates yet.', { issue: pi, focus, ...(offer ? { offerEscalation: offer } : {}) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
+  return say(bits.join(' ') || 'No updates yet.', { issue: pi, focus, ...(offer ? { offerEscalation: offer } : {}), ...(i.awaitRating && !i.booking?.rating && focus !== 'case' ? { offerRating: { issue: i.id, supplier: i.booking.supplier } } : {}) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
+}
+
+// "Why is it more?" Line-by-line difference between the recommended and the cheapest quote, and what waiting would save.
+function explainQuotes(i, q) {
+  const best = q[0]; const cheap = q.reduce((a, b) => (b.totalCents < a.totalCents ? b : a), q[0]);
+  const nm = (x) => x.supplier.replace(/^Demo /, '');
+  const table = { suppliers: [best.supplier, ...(cheap !== best ? [cheap.supplier] : [])], rows: best.lines.map((l) => ({ name: l.name, qty: l.qty, a: rand(l.totalCents), b: cheap !== best ? rand((cheap.lines.find((m) => m.sku === l.sku) || {}).totalCents || 0) : null })), vat: [rand(best.vatCents), ...(cheap !== best ? [rand(cheap.vatCents)] : [])], total: [rand(best.totalCents), ...(cheap !== best ? [rand(cheap.totalCents)] : [])] };
+  if (cheap === best) { const big = [...best.lines].sort((a, b) => b.totalCents - a.totalCents)[0]; return { table, speech: `${nm(best)} is both best value and cheapest, ${spokenRand(best.totalCents)} with VAT. ${big.name.replace(/ \(.*\)/, '')} is the biggest part, ${spokenRand(big.totalCents)}.` }; }
+  const diffs = best.lines.map((l) => ({ name: l.name.replace(/ \(.*\)/, '').toLowerCase(), d: l.totalCents - ((cheap.lines.find((m) => m.sku === l.sku) || {}).totalCents || 0) })).sort((a, b) => b.d - a.d);
+  const save = best.totalCents - cheap.totalCents;
+  const why = [best.etaHours < cheap.etaHours ? `come in about ${best.etaHours} hours, not ${cheap.etaHours}` : null, best.rating > cheap.rating ? `are rated ${best.rating}, not ${cheap.rating}` : null].filter(Boolean).join(' and ');
+  return { table, speech: `${nm(best)} costs ${spokenRand(save)} more than ${nm(cheap)}, mostly ${diffs[0].name}.${why ? ` They ${why}.` : ''} If waiting is fine, ${nm(cheap)} saves you ${spokenRand(save)}.` };
 }
 
 export async function compareQuotes(env, h, args) {
@@ -190,7 +205,8 @@ export async function compareQuotes(env, h, args) {
   for (const x of q) x.overBudget = cap ? x.totalCents > cap : false; // budget may have been set after quoting
   const best = q[0]; const cheap = [...q].sort((a, b) => a.totalCents - b.totalCents)[0];
   const text = `${note}${q.length} quotes on screen. ${best.supplier.replace(/^Demo /, '')} is best value at ${spokenRand(best.totalCents)}${cheap !== best ? `, cheapest is ${cheap.supplier.replace(/^Demo /, '')} at ${spokenRand(cheap.totalCents)}${cheap.overBudget ? '' : ''}` : ''}${best.overBudget ? ', over your budget' : ''}.`;
-  return say(text + ' Which one?', { issue: i.id, quotes: publicIssue(env, i).home.quotes }, { ui: { resourceUri: 'ui://fixwise/quotes' } });
+  if (args.explain === true) { const ex = explainQuotes(i, q); return say(note + ex.speech, { issue: i.id, quotes: publicIssue(env, i).home.quotes.filter((x) => !isAvoided(h.s.prefs, x.supplierId, x.supplier)), explain: ex.table }, { ui: { resourceUri: 'ui://fixwise/quotes' } }); }
+  return say(text + ' Which one?', { issue: i.id, quotes: publicIssue(env, i).home.quotes.filter((x) => !isAvoided(h.s.prefs, x.supplierId, x.supplier)) }, { ui: { resourceUri: 'ui://fixwise/quotes' } });
 }
 const ordinal = (n) => ['', 'First', 'Second', 'Third', 'Fourth', 'Fifth'][n] || `Number ${n}`;
 
@@ -234,7 +250,8 @@ export async function bookRepair(env, h, args, ctx) {
   i.booking = { reference: rid('BK'), supplier: a.supplier, supplierId: a.hold.supplierId, slot: a.hold.slot, total: rand(a.hold.totalCents), totalCents: a.hold.totalCents,
     payment: 'Pay on completion. Fixwise does not take card details.', simulated: true, note: 'Synthetic supplier; booking is simulated for the demo.' };
   const visit = a.hold.visit || visitWindow(a.hold.slot);
-  const ev = { ref: i.booking.reference, start: visit.start, end: visit.end, area: i.area || '', title: `${a.supplier}: ${(i.home && i.home.title) || 'repair visit'}`, desc: `Fixwise booking ${i.booking.reference}. ${i.booking.total} incl. VAT, pay on completion. Demo booking with a synthetic supplier.` };
+  const ls = loadSheddingTip(i.home && i.home.code); if (ls) i.booking.loadShedding = ls;
+  const ev = { ref: i.booking.reference, start: visit.start, end: visit.end, area: i.area || '', title: `${a.supplier}: ${(i.home && i.home.title) || 'repair visit'}`, desc: `Fixwise booking ${i.booking.reference}. ${i.booking.total} incl. VAT, pay on completion. Demo booking with a synthetic supplier.${ls ? ' ' + ls.tip : ''}` };
   i.booking.visit = { ...visit, ics: ctx?.origin ? icsLink(env, ctx.origin, ev) : null };
   i.booking.reminder = { suggested: true, at: new Date(Date.parse(visit.start) - 3600e3).toISOString(), text: `${a.supplier} arrives ${visit.label}`, note: 'Suggestion only. Add the calendar file to get the alert; Fixwise does not set Alexa reminders.' };
   const parts = partsFor(i.home && i.home.code);
@@ -293,6 +310,37 @@ export async function listIssues(env, h) {
   const items = h.s.issues.filter((i) => i.state !== 'closed').slice(-10).reverse().map((i) => publicIssue(env, i));
   if (!items.length) return say('Nothing open. Everything is fixed.', { issues: [] });
   return say(`You have ${items.length} open: ` + items.map((i) => i.home?.title || i.case?.title || i.summary).join('; ') + '.', { issues: items }, { ui: { resourceUri: 'ui://fixwise/issue' } });
+}
+
+const visitDone = (b) => b?.visit && Date.parse(b.visit.end) <= Date.now();
+const shortTitle = (i) => (i.home?.title || 'repair').toLowerCase().replace(/ or .*$/, '').replace(/ leak$/, '');
+const WORD = { one: 1, two: 2, three: 3, four: 4, five: 5 };
+export function parseRating(text) {
+  const t = String(text || '').toLowerCase();
+  const m = t.match(/\b([1-5]|one|two|three|four|five)\b(?:\s*(?:stars?|out of (?:5|five)|\/\s*5))?/);
+  const stars = m ? (WORD[m[1]] || Number(m[1])) : null;
+  const fixed = /\b(not (?:fixed|sorted|working)|still (?:leak|broken|not)|didn'?t|did not|no\b|nope)/.test(t) ? false : /\b(yes|yeah|yep|fixed|sorted|working|all good|great)\b/.test(t) ? true : null;
+  return { stars, fixed };
+}
+// "Did the plumber fix it? Rate them": stored on the booking; a low score adds the supplier to the household's avoid list.
+export async function rateRepair(env, h, args) {
+  let i = findIssue(h, args.issue);
+  if (!i?.booking) i = [...h.s.issues].reverse().find((x) => x.booking && !x.booking.rating);
+  if (!i?.booking) return err('There is no booked repair to rate.');
+  const stars = Number(args.stars); const fixed = typeof args.fixed === 'boolean' ? args.fixed : null;
+  const who = i.booking.supplier.replace(/^Demo /, '');
+  if (!(stars >= 1 && stars <= 5) && fixed === null) return say(`Did ${who} fix the ${shortTitle(i)}? Rate them 1 to 5.`, { offerRating: { issue: i.id, supplier: i.booking.supplier } });
+  if (!(stars >= 1 && stars <= 5)) { i.booking.pendingFixed = fixed; return say(`Got it${fixed ? ', fixed' : ''}. How many stars, 1 to 5?`, { offerRating: { issue: i.id, supplier: i.booking.supplier } }); }
+  const isFixed = fixed ?? i.booking.pendingFixed ?? (stars >= 3);
+  i.booking.rating = { stars, fixed: isFixed, at: new Date().toISOString() }; delete i.booking.pendingFixed; delete i.awaitRating;
+  h.s.ratings = [...(h.s.ratings || []), { supplierId: i.booking.supplierId, supplier: i.booking.supplier, stars, fixed: isFixed, issue: i.id, at: i.booking.rating.at }].slice(-50);
+  i.updates.push({ at: i.booking.rating.at, text: `Rated ${who} ${stars}/5${isFixed ? ', fixed' : ', not fixed'}` });
+  await audit(h, 'household', 'booking.rated', `${i.booking.reference} ${stars} ${isFixed}`);
+  const bits = [`Thanks, ${stars} out of 5 for ${who} is saved.`];
+  if (stars <= 2) { const p = h.s.prefs; p.avoidSuppliers = [...new Set([...(p.avoidSuppliers || []), i.booking.supplier])]; bits.push(`I won't suggest them again.`); }
+  if (isFixed) { if (!i.case || i.case.stageIndex >= 4) i.state = 'closed'; bits.push(`I've marked the ${shortTitle(i)} as fixed.`); }
+  else { i.pastBookings = [...(i.pastBookings || []), i.booking].slice(-5); i.booking = null; bits.push(`I'll keep the ${shortTitle(i)} open. Want me to compare the other quotes?`); }
+  return say(bits.join(' '), { rating: { stars, fixed: isFixed }, issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
 }
 
 export async function closeIssue(env, h, args) {
