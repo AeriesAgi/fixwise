@@ -168,6 +168,9 @@ export async function routeConsole(req, env, url, path, ctx) {
       if (!ok) { dialog.hist = [...(dialog.hist || []), { u: text.slice(0, 300), a: 'Okay, not booked.' }].slice(-4); await kvPut(env, dkey, dialog, 86400); return json({ speech: "Okay, I won't book that one. Say compare quotes to see the others.", planner, calls: [], totalMs: Date.now() - t0 }); }
       calls = [{ tool: 'fixwise_book_repair', args: { ...held, over_budget_ok: true } }];
     }
+    else if (SHOW_ME.test(text) && dialog.quotesOffer && !/\b(again|card)\b/i.test(text) && dialog.lastTool !== 'fixwise_compare_quotes') { // the open offer was quotes: show them
+      planner = 'show-guard'; calls = [{ tool: 'fixwise_compare_quotes', args: typeof dialog.quotesOffer === 'string' ? { issue: dialog.quotesOffer } : {} }];
+    }
     else if (SHOW_ME.test(text) && dialog.lastCard) { // "okay show me the thing": show the latest card again, no tool guessing
       await kvPut(env, dkey, dialog, 86400);
       return json({ speech: "Here it is.", planner: 'show-guard', calls: [], tool: dialog.lastTool || null, totalMs: Date.now() - t0, card: dialog.lastCard, awaitingYes: !!dialog.pendingApproval });
@@ -220,6 +223,10 @@ export async function routeConsole(req, env, url, path, ctx) {
         if (sc.needsScope) dialog.awaitingScope = { description: String(d.args.description || '').slice(0, 600), ...(d.args.area ? { area: d.args.area } : {}) }; else delete dialog.awaitingScope; }
       if (d.tool === 'fixwise_remember' && d.args.area) delete dialog.awaitingArea;
       if (d.args?.rank) dialog.lastRank = d.args.rank;
+      // Remember the open quote offer ("...best is X at R2,967. Book it?") so a vague "show me the thing" means those quotes.
+      const qIssue = sc.issue?.id && (sc.quotes?.length || sc.issue?.quotes?.length || sc.bestQuote) ? sc.issue.id : null;
+      if ((d.tool === 'fixwise_report_problem' || d.tool === 'fixwise_compare_quotes') && /quotes?\b/i.test(d.result?.content?.[0]?.text || '')) dialog.quotesOffer = qIssue || dialog.quotesOffer || true;
+      if (d.tool === 'fixwise_book_repair' && !sc.approval && !sc.overBudget) delete dialog.quotesOffer;
       dialog.lastTool = d.tool;
     }
     dialog.hist = [...(dialog.hist || []), { u: text.slice(0, 300), a: speech.slice(0, 300) }].slice(-4);
