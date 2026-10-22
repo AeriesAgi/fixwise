@@ -61,7 +61,7 @@ const err = (text) => ({ isError: true, content: [{ type: 'text', text }] });
 
 export const OUT_OF_SCOPE = "That's outside what Fixwise does. I handle repairs at home and on your street, like a leaking geyser or a power outage. What's broken?";
 // "in Sandton", "on Jan Smuts Avenue", "at 12 Oak Street": capitalised place words after a preposition.
-const spokenWindow = (v) => { const m = v.label.match(/^(\w+), (\d+ \w+), (\d\d:\d\d)–(\d\d:\d\d)/); return m ? `${m[1]} ${m[2]}, between ${m[3]} and ${m[4]}` : v.label; };
+const spokenWindow = (v) => { const m = v.label.match(/^(\w+), (\d+ \w+), (\d\d:\d\d)–(\d\d:\d\d)/); const W = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' }; return m ? `${W[m[1]] || m[1]} ${m[2]}, between ${m[3]} and ${m[4]}` : v.label; };
 export function extractArea(text) {
   const m = /\b(?:in|on|at|near|outside)\s+((?:\d{1,4}\s+)?(?:[A-Z][\w'-]+)(?:\s+[A-Z][\w'-]+){0,3})/.exec(String(text));
   return m ? m[1].trim().slice(0, 80) : '';
@@ -244,7 +244,7 @@ export async function bookRepair(env, h, args, ctx) {
 }
 function slotFor(q, prefs, asked) {
   const req = asked && String(asked).replace(/[^\w ,:'-]/g, '').trim().slice(0, 60);
-  if (req) return req;
+  if (req && /\b(today|tonight|tomorrow|morning|afternoon|evening|asap|now|weekend|(mon|tues|wednes|thurs|fri|satur|sun)day|\d)/i.test(req)) return req;
   const when = prefs.timeWindow || (q.etaHours <= 6 ? 'today' : q.etaHours <= 24 ? 'tomorrow morning' : 'within two days');
   return q.etaHours <= 6 && !prefs.timeWindow ? `today, within about ${q.etaHours} hours` : `${when}`;
 }

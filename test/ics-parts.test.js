@@ -15,6 +15,13 @@ test('visit windows are concrete SAST times', () => {
   assert.match(ics, /DTSTART:20261023T060000Z\r\n/); assert.match(ics, /SUMMARY:A\\, b\\; c/); assert.match(ics, /BEGIN:VALARM/);
 });
 
+test('a place name is not a time window', async () => {
+  const env = await makeEnv(); const { tok } = await link(env); const c = mcpClient(env, tok.access_token);
+  await c.tool('fixwise_report_problem', { description: 'my geyser is leaking', area: 'Melville' });
+  const held = await c.tool('fixwise_book_repair', { issue: 'geyser', rank: 1, time_window: 'Melville' });
+  assert.doesNotMatch(held.structuredContent.approval.slot, /Melville/);
+});
+
 test('confirmed booking returns a signed .ics link that downloads, plus amazon.co.za parts search links', async () => {
   const env = await makeEnv(); const { tok } = await link(env); const c = mcpClient(env, tok.access_token, { origin: 'https://fixwise.test' });
   await c.tool('fixwise_report_problem', { description: 'my geyser is leaking', area: 'Melville' });
