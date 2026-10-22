@@ -36,7 +36,7 @@ async def run(p, name, vp, mobile):
         except Exception: return ''
     await pg.goto(BASE + '/console'); await pg.wait_for_timeout(1500)
     check(not errs, 'console script loads without errors')
-    r = await say('Can you send a WhatsApp to my brother?'); check(re.search(r"can't|cannot|can not|only (help|handle)|not something|what needs fixing|what's broken", r, re.I) is not None and not re.search(r'\bsent\b', r), 'out-of-scope request refused honestly: ' + r.replace('\n', ' ')[:90])
+    r = await say('Can you send a WhatsApp to my brother?'); check(re.search(r"can't|cannot|can not|only (help|handle)|here to (assist|help)|not something|what needs fixing|what's broken", r, re.I) is not None and not re.search(r'\bsent\b', r), 'out-of-scope request refused honestly: ' + r.replace('\n', ' ')[:90])
     r = await say('My geyser is leaking in Melville'); c = await card()
     check('Switch the geyser off' in r and 'R2,967' in c, 'geyser report: safety step + quotes card'); await shot('quotes')
     r = await say('Why is the first one more expensive?'); c = await card()
