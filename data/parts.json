@@ -1,0 +1,35 @@
+{
+  "note": "Common parts a homeowner may want to have on hand or check with the contractor. Links are amazon.co.za search pages, not products or prices; nothing is added to a cart or ordered.",
+  "jobs": {
+    "HOME.GEYSER": [
+      { "name": "Geyser drip tray", "query": "geyser drip tray", "why": "Catches the next leak before it reaches the ceiling." },
+      { "name": "Geyser thermostat", "query": "geyser thermostat", "why": "The usual culprit when the geyser trips or overheats." },
+      { "name": "Pressure control valve", "query": "geyser pressure control valve", "why": "Often replaced with a leaking or burst geyser." }
+    ],
+    "HOME.PIPE_LEAK": [
+      { "name": "PTFE thread tape", "query": "PTFE plumbers thread tape", "why": "Seals threaded joints on taps and fittings." },
+      { "name": "Tap washers", "query": "tap washer set", "why": "A worn washer is the most common cause of a dripping tap." },
+      { "name": "Self-fusing repair tape", "query": "self fusing silicone repair tape", "why": "A temporary wrap until the plumber arrives." }
+    ],
+    "HOME.DRAIN": [
+      { "name": "Drain plunger", "query": "drain plunger", "why": "First thing to try on a slow sink or toilet." },
+      { "name": "Drain snake", "query": "drain snake auger", "why": "Clears hair and grease further down the pipe." }
+    ],
+    "HOME.ROOF": [
+      { "name": "Roof sealant", "query": "roof sealant waterproof", "why": "Seals small cracks around flashing until a roofer can look." },
+      { "name": "Tarpaulin", "query": "heavy duty tarpaulin", "why": "Covers a damaged section before the next rain." }
+    ],
+    "HOME.ELECTRICAL": [
+      { "name": "Non-contact voltage tester", "query": "non contact voltage tester", "why": "Check a socket is dead before anyone touches it." },
+      { "name": "LED torch", "query": "rechargeable LED torch", "why": "For working at the board in the dark." }
+    ],
+    "HOME.GATE": [
+      { "name": "Gate motor battery 12V 7Ah", "query": "gate motor battery 12V 7Ah", "why": "A flat battery is the most common gate motor fault." },
+      { "name": "Gate remote", "query": "gate motor remote", "why": "Replacement if the remote is the problem." }
+    ],
+    "HOME.APPLIANCE": [
+      { "name": "Fridge thermometer", "query": "fridge thermometer", "why": "Shows whether food is still at a safe temperature." },
+      { "name": "Fridge door seal cleaner", "query": "fridge door seal", "why": "A bad seal is a common, cheap fix." }
+    ]
+  }
+}

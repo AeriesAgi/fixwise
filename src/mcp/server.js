@@ -36,7 +36,7 @@ export async function callTool(env, grant, name, args, ctx = {}) {
   if (name === 'fixwise_disconnect') { await revokeFamily(env, grant); return { result: { content: [{ type: 'text', text: 'Fixwise is disconnected. Link it again in the Alexa app any time.' }] } }; }
   const h = await fx.loadHousehold(env, grant.user.sub);
   const merged = await fx.mergeAdvice(env, h, grant.user.sub);
-  const c = { enqueue: ctx.enqueue ? (job) => ctx.enqueue({ ...job, sub: grant.user.sub }) : null };
+  const c = { origin: ctx.origin || env.PUBLIC_ORIGIN || '', enqueue: ctx.enqueue ? (job) => ctx.enqueue({ ...job, sub: grant.user.sub }) : null };
   const result = await HANDLERS[name](env, h, args ?? {}, c);
   if (merged || !tool.annotations.readOnlyHint || name === 'fixwise_check_status') await fx.saveHousehold(env, h);
   return { result };

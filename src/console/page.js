@@ -71,6 +71,9 @@ export function consoleScript() {
   return `// The card iframe is sandboxed without allow-same-origin, so its origin is opaque ("null") and no targetOrigin
 // other than '*' can reach it. Data goes only to that frame's own contentWindow, whose src we set; replies are
 // accepted only when e.source is that window.
+window.addEventListener('message',e=>{if(e.source!==card.contentWindow)return;const m=e.data||{};if(m.method!=='ui/open-link')return;let u;try{u=new URL((m.params||{}).url,location.href)}catch(x){return}
+ const ok=(u.origin===location.origin&&u.pathname==='/ics')||(u.protocol==='https:'&&u.hostname==='www.amazon.co.za'&&u.pathname==='/s');
+ if(ok){if(u.pathname==='/ics')location.assign(u.href);else window.open(u.href,'_blank','noopener,noreferrer')}toCard({jsonrpc:'2.0',id:m.id,result:ok?{}:undefined,error:ok?undefined:{code:-32602,message:'link not allowed'}})});
 const toCard=(m)=>card.contentWindow&&card.contentWindow.postMessage(m,'*');
 const $=id=>document.getElementById(id);const log=$('log'),bar=$('bar'),card=$('card');
 let sid=localStorage.getItem('fx_sid2');async function ensureSid(force){if(sid&&!force)return sid;const r=await fetch('/console/api/session',{method:'POST'}).then(r=>r.json()).catch(()=>({}));sid=r.sid||null;if(sid)localStorage.setItem('fx_sid2',sid);return sid}

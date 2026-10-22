@@ -4,6 +4,7 @@ import { HOME, classifyHomeAll, priceQuotes, isAvoided, rand, spokenRand } from 
 import { triage } from './safety.js';
 import { searchMemory } from './memory-search.js';
 import { sha256, sha256hex } from '../util.js';
+import { visitWindow, icsLink, partsFor, PARTS_NOTE } from './calendar.js';
 
 const UTILITY_SAFETY = {
   'ELEC.AREA_OUTAGE': { steps: ['Switch off your geyser, pool pump and sensitive electronics, so the surge when power returns does not damage them.', 'Never go near a fallen or cut cable. If one is sparking, call 112.'] },
@@ -60,6 +61,7 @@ const err = (text) => ({ isError: true, content: [{ type: 'text', text }] });
 
 export const OUT_OF_SCOPE = "That's outside what Fixwise does. I handle repairs at home and on your street, like a leaking geyser or a power outage. What's broken?";
 // "in Sandton", "on Jan Smuts Avenue", "at 12 Oak Street": capitalised place words after a preposition.
+const spokenWindow = (v) => { const m = v.label.match(/^(\w+), (\d+ \w+), (\d\d:\d\d)–(\d\d:\d\d)/); return m ? `${m[1]} ${m[2]}, between ${m[3]} and ${m[4]}` : v.label; };
 export function extractArea(text) {
   const m = /\b(?:in|on|at|near|outside)\s+((?:\d{1,4}\s+)?(?:[A-Z][\w'-]+)(?:\s+[A-Z][\w'-]+){0,3})/.exec(String(text));
   return m ? m[1].trim().slice(0, 80) : '';
@@ -203,7 +205,7 @@ function pickQuote(i, args, prefs = {}) {
 
 // Two-step purchase: step 1 holds the exact quote and returns a confirmation; step 2 books only with that approval.
 // The hold is bound to a digest of the exact quote, works once and expires after 15 minutes.
-export async function bookRepair(env, h, args) {
+export async function bookRepair(env, h, args, ctx) {
   const held = args.approval_id && !args.issue ? h.s.approvals.find((x) => x.id === args.approval_id) : null;
   const i = held ? h.s.issues.find((x) => x.id === held.hold.issue) : findIssue(h, args.issue);
   if (!i?.home) return err('That issue has no private repair to book.');
@@ -230,9 +232,15 @@ export async function bookRepair(env, h, args) {
   a.state = 'redeemed';
   i.booking = { reference: rid('BK'), supplier: a.supplier, supplierId: a.hold.supplierId, slot: a.hold.slot, total: rand(a.hold.totalCents), totalCents: a.hold.totalCents,
     payment: 'Pay on completion. Fixwise does not take card details.', simulated: true, note: 'Synthetic supplier; booking is simulated for the demo.' };
+  const visit = visitWindow(a.hold.slot);
+  const ev = { ref: i.booking.reference, start: visit.start, end: visit.end, area: i.area || '', title: `${a.supplier}: ${(i.home && i.home.title) || 'repair visit'}`, desc: `Fixwise booking ${i.booking.reference}. ${i.booking.total} incl. VAT, pay on completion. Demo booking with a synthetic supplier.` };
+  i.booking.visit = { ...visit, ics: ctx?.origin ? icsLink(env, ctx.origin, ev) : null };
+  i.booking.reminder = { suggested: true, at: new Date(Date.parse(visit.start) - 3600e3).toISOString(), text: `${a.supplier} arrives ${visit.label}`, note: 'Suggestion only. Add the calendar file to get the alert; Fixwise does not set Alexa reminders.' };
+  const parts = partsFor(i.home && i.home.code);
+  if (parts.length) i.booking.parts = { items: parts, note: PARTS_NOTE };
   i.updates.push({ at: new Date().toISOString(), text: `Booked ${a.supplier} for ${a.hold.slot}` });
   await audit(h, 'household', 'booking.confirmed', `${i.booking.reference} ${a.id}`);
-  return say(`Booked. ${a.supplier} is coming ${a.hold.slot}. Your booking reference is ${spell(i.booking.reference)}. I'll keep an eye on the municipal side too.`, { booking: i.booking }, { ui: { resourceUri: 'ui://fixwise/approval' } });
+  return say(`Booked. ${a.supplier} comes ${spokenWindow(i.booking.visit)}, reference ${spell(i.booking.reference)}. The calendar file${parts.length ? ' and a parts list are' : ' is'} on screen.`, { booking: i.booking }, { ui: { resourceUri: 'ui://fixwise/approval' } });
 }
 function slotFor(q, prefs, asked) {
   const req = asked && String(asked).replace(/[^\w ,:'-]/g, '').trim().slice(0, 60);
