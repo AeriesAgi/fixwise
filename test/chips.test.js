@@ -19,3 +19,10 @@ test('console page applies the same chip rule', async () => {
   const src = String(consoleScript || (await import('node:fs')).readFileSync(new URL('../src/console/page.js', import.meta.url), 'utf8'));
   assert.match(src, /ctxChips\(NEXT\[r\.tool\]/);
 });
+test('demo clock note is unambiguous and skip chips are context-aware', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('../src/console/page.js', import.meta.url), 'utf8');
+  const fn = new Function(src.match(/function demoClockNote\(h,t\)\{.*?\}\n/s)[0] + 'return demoClockNote;')();
+  assert.strictEqual(fn(48, 48), '⏩ Demo clock: +48 h. Real tool calls, simulated time.');
+  assert.strictEqual(fn(48, 144), '⏩ Demo clock: +48 h (skip 3, so +144 h since you started). Real tool calls, simulated time.');
+  assert.doesNotMatch(src, /chips\(\['Any news on the power\?'/);
+});
