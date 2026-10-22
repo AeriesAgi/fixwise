@@ -418,7 +418,8 @@ export function trackerView(env, i) {
   }
   if (i.home) {
     steps.push({ key: 'quotes', label: `${i.home.quotes.length} quotes`, detail: i.home.quotes[0] ? `Best ${rand(i.home.quotes[0].totalCents)}` : '', state: 'done' });
-    steps.push({ key: 'booked', label: i.booking ? `Booked · ${i.booking.supplier}` : 'Book a repair', detail: i.booking ? i.booking.reference : 'Waiting for your yes', state: i.booking ? 'done' : 'now' });
+    { const last = (i.pastBookings || []).slice(-1)[0]; const re = !i.booking && last?.rating && last.rating.fixed === false;
+    steps.push({ key: 'booked', label: i.booking ? `Booked · ${i.booking.supplier}` : re ? 'Not fixed · book another' : 'Book a repair', detail: i.booking ? i.booking.reference : re ? `${last.supplier} rated ${last.rating.stars}/5 · say "compare the quotes"` : 'Choose a quote, then say yes', state: i.booking ? 'done' : 'now' }); }
     steps.push({ key: 'visit', label: i.booking ? `Visit ${i.booking.slot}` : 'Visit', detail: i.booking?.visit?.label || '', state: i.booking ? (i.state === 'closed' ? 'done' : 'now') : 'next' });
   }
   steps.push({ key: 'fixed', label: 'Fixed', state: i.state === 'closed' ? 'done' : 'next' });
