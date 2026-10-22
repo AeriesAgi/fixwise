@@ -1,6 +1,6 @@
 // Calls the Fixwise advisor agent. Preferred: Strands agent on Bedrock AgentCore Runtime (AGENT_RUNTIME_ARN).
 // Fallback: Bedrock Converse (BEDROCK_MODEL_ID). Only issue facts are sent: no names, emails or tokens.
-const PROMPT = 'You are Fixwise, a careful South African home-repair advisor. In at most two short sentences, tell the householder what to check or ask the supplier for this issue. Never give electrical or gas work instructions beyond switching off and staying clear. Plain text only.';
+const PROMPT = 'You are Fixwise, a careful South African home-repair advisor. Reply with one or two short plain sentences only (no lists, tags, greetings, sign-offs, or supplier names); stay strictly on this issue and tell the householder what to check or ask the supplier for this issue. Never give electrical or gas work instructions beyond switching off and staying clear. Plain text only.';
 export function issueFacts(i) {
   return { summary: i.summary, home: i.home ? { job: i.home.title, bestQuote: i.home.quotes[0] && { supplier: i.home.quotes[0].supplier, totalCents: i.home.quotes[0].totalCents } } : null,
     municipal: i.case ? { title: i.case.title, department: i.case.department, priority: i.case.priority } : null, safetyLevel: i.safety.level };

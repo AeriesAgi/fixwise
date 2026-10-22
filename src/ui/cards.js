@@ -67,7 +67,7 @@ if(t.sla){const pc=Math.min(100,Math.round(100*t.sla.elapsedMinutes/t.sla.target
 if(t.escalation)h+='<div class="esc">Escalated · '+esc(t.escalation.reference)+'<br><span class="m">'+esc(t.escalation.to)+' · demo: recorded, not sent</span></div>';
 else if(d.offerEscalation)h+='<div class="esc">Past target. Say “yes, escalate it” to push it to your ward councillor.</div>';
 const shown=t.steps.filter(s=>s.state!=='next'),later=t.steps.filter(s=>s.state==='next');h+='<ol class="tl">'+shown.map(s=>'<li class="'+esc(s.state)+'"><span class="d" aria-hidden="true"></span><b>'+esc(s.label)+'</b>'+(s.detail||s.at?'<span class="m">'+esc(s.detail||'')+(s.at&&s.detail?' · ':'')+esc(fmt(s.at))+'</span>':'')+'<span class="sr" style="position:absolute;left:-9999px">'+esc(s.state)+'</span></li>').join('')+(later.length?'<li class="next"><span class="d" aria-hidden="true"></span><b>Next</b><span class="m">'+later.map(s=>esc(s.label)).join(' → ')+'</span></li>':'')+'</ol></div>';
-return h;}`;
+return (i.demoClockHours?'<div style="display:inline-block;margin:0 0 8px;padding:2px 8px;border-radius:999px;background:#3b2f0b;color:#fcd34d;font-size:11px;font-weight:600">⏩ Demo clock +'+i.demoClockHours+' h · simulated time, dates shifted</div>':'')+h;}`;
 
 export const RESOURCES = [
   { uri: 'ui://fixwise/issue', name: 'fixwise-issue', title: 'Issue timeline', description: 'Safety steps, municipal progress and the best quote for one or more issues.', html: SHELL('Fixwise issue', ISSUE) },

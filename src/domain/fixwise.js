@@ -140,7 +140,7 @@ export function publicIssue(env, i) {
   return { id: i.id, summary: i.summary, area: i.area, state: i.state, createdAt: new Date(i.createdMs).toISOString(), safety: i.safety,
     case: i.case ? caseView(env, i.case) : null,
     home: i.home ? { title: i.home.title, trade: i.home.trade, quotes: i.home.quotes.map((q) => ({ rank: q.rank, supplier: q.supplier, supplierId: q.supplierId, total: rand(q.totalCents), totalCents: q.totalCents, etaHours: q.etaHours, rating: q.rating, tag: q.tag, overBudget: q.overBudget })) } : null,
-    booking: i.booking || null, advisorNote: i.advisorNote || null, updates: i.updates.slice(-10), tracker: trackerView(env, i) };
+    booking: i.booking || null, advisorNote: i.advisorNote || null, demoClockHours: i.demoClockHours || 0, updates: i.updates.slice(-10), tracker: trackerView(env, i) };
 }
 
 // A compound report keeps the municipal case and the first private repair on one issue. When the customer asks about
@@ -174,7 +174,7 @@ export async function checkStatus(env, h, args) {
     else if (i.booking && visitDone(i.booking)) { bits.push(`${who}'s visit is done. Did they fix the ${shortTitle(i)}? Rate them 1 to 5.`); offer = null; i.awaitRating = true; }
     else if (i.booking) bits.push(`${who} is booked, ${i.booking.visit ? spokenWindow(i.booking.visit) : i.booking.slot}.`);
     else if (i.home?.quotes.length) bits.push(`The ${i.home.title.toLowerCase().replace(/ or .*$/, '')} isn't booked yet. Best quote is ${spokenRand(i.home.quotes[0].totalCents)}.`);
-    if (i.advisorNote && i.home && !bits.some((b) => /past the/.test(b))) bits.push(i.advisorNote.spoken);
+    if (i.advisorNote && i.home && !i.awaitRating && !i.booking?.rating && !(i.booking && visitDone(i.booking)) && !bits.some((b) => /past the/.test(b))) { const n = cleanAdvice(i.advisorNote); if (n) bits.push(n.spoken); }
   }
   const pi = publicIssue(env, i); if (focus === 'case') { pi.home = null; pi.booking = null; pi.advisorNote = null; pi.tracker = trackerView(env, { ...i, home: null, booking: null }); } else if (focus === 'home') { pi.case = null; pi.tracker = trackerView(env, { ...i, case: null }); }
   return say(bits.join(' ') || 'No updates yet.', { issue: pi, focus, ...(offer ? { offerEscalation: offer } : {}), ...(i.awaitRating && !i.booking?.rating && focus !== 'case' ? { offerRating: { issue: i.id, supplier: i.booking.supplier } } : {}) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
@@ -364,9 +364,21 @@ export async function activity(env, h) {
   return say(`${h.s.chain.length} recorded actions. Audit chain ${v.ok ? 'verified' : 'BROKEN at entry ' + v.brokenAt}.`, { verify: v, recent: h.s.chain.slice(-20).reverse() });
 }
 
+// Post-filter for model output: plain text, at most 2 short sentences, no supplier names, no off-topic asides.
+export function cleanAdvice(note) {
+  if (!note || typeof note.text !== 'string') return null;
+  const t = note.text.replace(/<[^>]+>/g, ' ').replace(/[*#_`]+/g, '').replace(/\s+/g, ' ').trim();
+  const sents = (t.match(/[^.!?]+[.!?]+/g) || [t]).map((x) => x.trim()).filter((x) => x.length > 8 && x.split(' ').length <= 30)
+    .filter((x) => !/\b(demo |i am|i'm an? |as an ai|fixwise|let me know|hope this|feel free|happy to|good luck)\b/i.test(x));
+  if (!sents.length) return null;
+  const keep = sents.slice(0, 2);
+  return { ...note, text: keep.join(' '), spoken: keep[0] };
+}
+
 // Worker-side: attach the advisor note produced asynchronously (Bedrock via AgentCore, or the local fallback).
 export async function attachAdvice(env, h, issueId, note) {
   const i = h.s.issues.find((x) => x.id === issueId); if (!i) return false;
+  note = cleanAdvice(note); if (!note) return false;
   i.advisorNote = note; i.updates.push({ at: new Date().toISOString(), text: 'Advisor note ready' });
   await audit(h, 'agent', 'advice.attached', `${issueId} ${note.source}`);
   return true;

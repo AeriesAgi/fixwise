@@ -115,7 +115,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     const sid = String(b.sid || ''); if (!verifySession(env, sid)) return json({ error: 'bad_session' }, 400);
     const hours = Math.min(96, Math.max(1, Number(b.hours) || 48)); const ms = hours * 3600000;
     const h = await loadHousehold(env, `console:${await sha256(sid)}`);
-    for (const i of h.s.issues) { i.createdMs -= ms; if (i.booking?.visit) { i.booking.visit.start = new Date(Date.parse(i.booking.visit.start) - ms).toISOString(); i.booking.visit.end = new Date(Date.parse(i.booking.visit.end) - ms).toISOString(); } if (i.case) { i.case.createdMs -= ms; if (i.case.escalatedMs) i.case.escalatedMs -= ms; } }
+    for (const i of h.s.issues) { i.createdMs -= ms; i.demoClockHours = (i.demoClockHours || 0) + hours; if (i.booking?.visit) { i.booking.visit.start = new Date(Date.parse(i.booking.visit.start) - ms).toISOString(); i.booking.visit.end = new Date(Date.parse(i.booking.visit.end) - ms).toISOString(); } if (i.case) { i.case.createdMs -= ms; if (i.case.escalatedMs) i.case.escalatedMs -= ms; } }
     h.s.demoClockHours = (h.s.demoClockHours || 0) + hours;
     await saveHousehold(env, h);
     return json({ ok: true, hours, totalHours: h.s.demoClockHours });
