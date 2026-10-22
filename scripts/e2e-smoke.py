@@ -5,7 +5,8 @@ import asyncio, re, sys, os
 from playwright.async_api import async_playwright
 BASE = sys.argv[1] if len(sys.argv) > 1 else 'https://alexa.culltron.app'
 SHOTS = sys.argv[2] if len(sys.argv) > 2 else None
-CHROME = os.environ.get('SMOKE_CHROME') or None  # default: Playwright's bundled headless shell (more stable than desktop Chrome)
+import glob
+CHROME = os.environ.get('SMOKE_CHROME') or next(iter(sorted(glob.glob(os.path.expanduser('~/.cache/ms-playwright/chromium_headless_shell-*/chrome-*/headless_shell')))[::-1]), None) or ('/usr/bin/google-chrome' if os.path.exists('/usr/bin/google-chrome') else None)  # default: Playwright's bundled headless shell (more stable than desktop Chrome)
 
 async def run(p, name, vp, mobile):
     b = await p.chromium.launch(executable_path=CHROME, args=['--mute-audio', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote'])
