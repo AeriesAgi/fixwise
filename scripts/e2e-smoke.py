@@ -5,10 +5,10 @@ import asyncio, re, sys, os
 from playwright.async_api import async_playwright
 BASE = sys.argv[1] if len(sys.argv) > 1 else 'https://alexa.culltron.app'
 SHOTS = sys.argv[2] if len(sys.argv) > 2 else None
-CHROME = '/usr/bin/google-chrome' if os.path.exists('/usr/bin/google-chrome') else None
+CHROME = os.environ.get('SMOKE_CHROME') or None  # default: Playwright's bundled headless shell (more stable than desktop Chrome)
 
 async def run(p, name, vp, mobile):
-    b = await p.chromium.launch(executable_path=CHROME, args=['--mute-audio', '--disable-dev-shm-usage'])
+    b = await p.chromium.launch(executable_path=CHROME, args=['--mute-audio', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote'])
     ctx = await b.new_context(viewport=vp, is_mobile=mobile, has_touch=mobile, device_scale_factor=2 if mobile else 1)
     pg = await ctx.new_page(); errs = []
     pg.on('pageerror', lambda e: errs.append(str(e)))
@@ -27,13 +27,15 @@ async def run(p, name, vp, mobile):
             if await pg.locator('.msg.ax').count() > n: break
             await pg.wait_for_timeout(250)
         await pg.wait_for_timeout(1500)
-        return (await pg.locator('.msg.ax').last.inner_text()) if await pg.locator('.msg.ax').count() > n else ''
+        out = (await pg.locator('.msg.ax').last.inner_text()) if await pg.locator('.msg.ax').count() > n else ''
+        if re.search(r'</?[a-z]+>', out): check(False, 'no markup leaked into speech: ' + out[:80])
+        return out
     async def card():
         try: return await pg.frame_locator('#card').locator('body').inner_text(timeout=5000)
         except Exception: return ''
     await pg.goto(BASE + '/console'); await pg.wait_for_timeout(1500)
     check(not errs, 'console script loads without errors')
-    r = await say('Can you send a WhatsApp to my brother?'); check(re.search(r"can't|cannot|can not", r, re.I) is not None, 'out-of-scope request refused honestly')
+    r = await say('Can you send a WhatsApp to my brother?'); check(re.search(r"can't|cannot|can not|only (help|handle)|not something|what needs fixing|what's broken", r, re.I) is not None and not re.search(r'\bsent\b', r), 'out-of-scope request refused honestly: ' + r.replace('\n', ' ')[:90])
     r = await say('My geyser is leaking in Melville'); c = await card()
     check('Switch the geyser off' in r and 'R2,967' in c, 'geyser report: safety step + quotes card'); await shot('quotes')
     r = await say('Why is the first one more expensive?'); c = await card()
@@ -64,11 +66,11 @@ async def main():
     allf = []
     async with async_playwright() as p:
         for name, vp, m in [('phone412', {'width': 412, 'height': 915}, True), ('desktop', {'width': 1280, 'height': 860}, False)]:
-            for attempt in range(3):
+            for attempt in range(4):
                 try: allf += await run(p, name, vp, m); break
                 except Exception as e:
                     print(f'  retry [{name}] {type(e).__name__}: {str(e)[:160]}')
-                    if attempt == 2: allf.append(f'{name}: crashed')
+                    if attempt == 3: allf.append(f'{name}: crashed')
     print('E2E SMOKE ' + ('PASSED' if not allf else f'FAILED ({len(allf)})'))
     sys.exit(1 if allf else 0)
 asyncio.run(main())

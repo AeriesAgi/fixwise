@@ -49,7 +49,7 @@ export async function plan(env, { text, dialog, tools }) {
       toolConfig: { tools: toBedrockTools(tools), toolChoice: { auto: {} } }, inferenceConfig: { maxTokens: 400, temperature: 0 } }, ac.signal);
     const content = out?.output?.message?.content || [];
     const calls = content.filter((c) => c.toolUse).map((c) => ({ name: c.toolUse.name, input: c.toolUse.input || {} })).slice(0, 3);
-    const said = content.filter((c) => c.text).map((c) => c.text).join(' ').replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+    const said = content.filter((c) => c.text).map((c) => c.text).join(' ').replace(/<thinking>[\s\S]*?<\/thinking>/g, '').replace(/<\/?(response|answer|reply|speech|output)>/gi, '').trim();
     return { calls, text: said, ms: Date.now() - t0, usage: out?.usage };
   } finally { clearTimeout(timer); }
 }
