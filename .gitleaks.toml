@@ -1,0 +1,6 @@
+title = "fixwise"
+[extend]
+useDefault = true
+[allowlist]
+paths = ['''package-lock\.json''', '''build/''', '''node_modules/''', '''\.venv/''']
+regexes = ['''test-client-secret-not-real-0+''', '''secret-token-should-not-be-logged-0+''']

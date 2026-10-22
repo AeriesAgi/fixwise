@@ -1,0 +1,11 @@
+node_modules/
+.dev.vars
+*.log
+cdk.out/
+infra/cdk.out/
+.venv/
+__pycache__/
+build/
+.env*
+!.env.example
+.deploy/

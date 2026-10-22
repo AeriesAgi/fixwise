@@ -1,0 +1,19 @@
+# Captured 22 Oct 2026 11:54 SAST, live
+$ curl -si -X POST https://alexa.culltron.app/mcp -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"ping"}'
+HTTP/2 401 
+content-type: application/json
+www-authenticate: Bearer resource_metadata="https://alexa.culltron.app/.well-known/oauth-protected-resource"
+{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"Authentication required"}}
+
+$ curl -si -X POST https://alexa.culltron.app/alexa/mcp -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"ping"}'
+HTTP/2 401 
+content-type: application/json
+{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"Authentication required"}}
+
+$ curl -s https://alexa.culltron.app/.well-known/oauth-protected-resource
+{"resource":"https://alexa.culltron.app/mcp","authorization_servers":["https://alexa.culltron.app"],"scopes_supported":["fixwise.read","fixwise.act"],"bearer_methods_supported":["header"],"resource_name":"Fixwise"}
+
+# Direct Function URL without the Cloudflare Worker's origin header
+$ curl -si https://<function-url>/mcp
+HTTP/1.1 403 Forbidden
+{"error":"forbidden"}

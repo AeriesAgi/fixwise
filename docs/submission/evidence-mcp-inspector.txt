@@ -1,0 +1,70 @@
+# MCP Inspector CLI proof run against the live server (22 Oct 2026 11:07 SAST)
+$ npx @modelcontextprotocol/inspector --cli https://alexa.culltron.app/mcp --transport http --header "Authorization: Bearer <judge token>" --method tools/list
+{
+  "tools": [
+    {
+      "name": "fixwise_report_problem",
+      "title": "Report a home or street problem",
+      "description": "Use when the customer describes something broken at home (geyser, burst pipe, tripping power, roof leak, blocked drain, gate) and/or on their street (street light, pothole, water main, live wire, dumping). Gives safety steps first, logs the public part with the municipality and returns priced repair quotes for the private part. Read the safety steps out before anything else.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000,
+            "description": "The customer's own words."
+          },
+
+
+$ ... --method tools/call --tool-name fixwise_list_issues
+{
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://fixwise/issue"
+    }
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "You have 5 open: Geyser leak or failure; Geyser leak or failure; Geyser leak or failure; Geyser leak or failure; Geyser leak or failure."
+    }
+  ],
+  "structuredContent": {
+    "issues": [
+      {
+        "id": "FX-BA7B99",
+        "summary": "The geyser's leaking through the ceiling and the street light outside has been out for two days",
+        "area": "Melville",
+        "state": "open",
+        "createdAt": "2026-10-22T09:07:38.883Z",
+        "safety": {
+          "level": "urgent",
+          "steps": [
+            "Switch the geyser off at the distr
+$ ... --method resources/list
+{
+  "resources": [
+    {
+      "name": "fixwise-issue",
+      "title": "Issue timeline",
+      "uri": "ui://fixwise/issue",
+      "description": "Safety steps, municipal progress and the best quote for one or more issues.",
+      "mimeType": "text/html;profile=mcp-app"
+    },
+    {
+      "name": "fixwise-quotes",
+      "title": "Quote carousel",
+      "uri": "ui://fixwise/quotes",
+      "description": "Side-by-side repair quotes.",
+      "mimeType": "text/html;profile=mcp-app"
+    },
+    {
+      "name": "fixwise-approval",
+      "title": "Booking confirmation",
+      "uri": "ui://fixwise/approval",
+      "description": "The exact quote held for the customer to confirm.",
+      "mimeType": "text/html;profile=mcp-app"
+    }
+  ]
+}

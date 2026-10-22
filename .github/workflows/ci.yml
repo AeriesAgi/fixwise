@@ -1,0 +1,36 @@
+# Manual only (workflow_dispatch). No push/PR triggers, by owner rule, to protect Actions minutes.
+name: ci
+on: { workflow_dispatch: {} }
+permissions: { contents: read }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - name: e2e with the official MCP SDK client
+        run: |
+          mkdir -p "$RUNNER_TEMP/fx" && node scripts/client-secret.mjs "$RUNNER_TEMP/fx/secret" > "$RUNNER_TEMP/fx/hash"
+          export FIXWISE_CLIENTS="[{\"client_id\":\"ci\",\"client_name\":\"CI\",\"redirect_uris\":[\"https://layla.amazon.com/api/skill/link/CI\"],\"token_endpoint_auth_method\":\"client_secret_basic\",\"secret_hash\":\"$(cat $RUNNER_TEMP/fx/hash)\"}]"
+          DEV_LOGIN=1 ENVIRONMENT=ci node src/node-server.js & sleep 1
+          CLIENT_ID=ci CLIENT_SECRET="$(cat $RUNNER_TEMP/fx/secret)" REDIRECT_URI=https://layla.amazon.com/api/skill/link/CI node scripts/e2e.mjs
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install pytest && cd agents && python -m pytest -q
+      - run: |
+          pip install -r infra/requirements.txt && ./scripts/build-lambda.sh
+          cd infra && CDK_DEFAULT_ACCOUNT=111111111111 npx -y aws-cdk@2 synth -q
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks git --redact --config .gitleaks.toml -v .

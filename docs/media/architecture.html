@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#0d1b1e;font:15px system-ui,sans-serif;color:#eef6f4}svg text{fill:#eef6f4}.m{fill:#9dbab4;font-size:12px}</style></head><body>
+<svg width="1280" height="680" viewBox="0 0 1280 680" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10z" fill="#3ddc97"/></marker><marker id="c" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10z" fill="#1ec8ff"/></marker></defs>
+<style>.b{fill:#15292d;stroke:#2c4a50;stroke-width:1.5}.l{stroke:#3ddc97;stroke-width:2;fill:none;marker-end:url(#a)}.c{stroke:#1ec8ff;stroke-width:2;fill:none;marker-end:url(#c)}.d{stroke-dasharray:6 5}.off{fill:#10191c;stroke:#3a4a50;stroke-dasharray:5 4}</style>
+<text x="40" y="46" font-size="26" font-weight="800">Fixwise for Alexa+ · architecture (as deployed, 22 Oct 2026)</text>
+<text x="40" y="72" class="m">Green: MCP tool path (Alexa+ or any MCP client). Blue: console turn (Nova Lite plans, MCP client calls /mcp over HTTP). Dashed: background advice. Orange box: AWS us-east-1.</text>
+<rect class="b" x="30" y="110" width="200" height="80" rx="14"/><text x="50" y="142" font-weight="700">Alexa+ / MCP client</text><text x="50" y="166" class="m">Inspector · judge.mjs · SDK</text>
+<rect class="b" x="30" y="300" width="200" height="90" rx="14"/><text x="50" y="332" font-weight="700">Simulated console</text><text x="50" y="356" class="m">browser speech · MCP Apps</text><text x="50" y="374" class="m">cards · tool-call trace</text>
+<rect class="b" x="30" y="500" width="200" height="80" rx="14"/><text x="50" y="532" font-weight="700">Cloudflare Worker</text><text x="50" y="556" class="m">alexa.culltron.app proxy</text>
+<rect x="270" y="96" width="985" height="570" fill="none" stroke="#ff9900" stroke-width="1.5" rx="18"/><text x="290" y="122" fill="#ff9900" font-weight="700">AWS</text>
+<rect class="b" x="290" y="500" width="180" height="80" rx="14"/><text x="310" y="532" font-weight="700">Function URL</text><text x="310" y="556" class="m">HTTPS, no API Gateway</text>
+<rect class="b" x="520" y="250" width="290" height="190" rx="14"/><text x="540" y="282" font-weight="700">Lambda · Fixwise (Node 22, arm64)</text><text x="540" y="306" class="m">/mcp: MCP 2025-11-25, Streamable HTTP</text><text x="540" y="326" class="m">OAuth 2.1 · PKCE S256 · RFC 8707 resource</text><text x="540" y="346" class="m">11 tools · 3 ui:// MCP Apps cards</text><text x="540" y="372" fill="#1ec8ff" font-size="12">/console/api: planner + MCP client</text><text x="540" y="392" fill="#1ec8ff" font-size="12">regex fallback · confirmation guard</text><text x="540" y="418" class="m">EventBridge keep-warm every 5 min</text>
+<rect class="b" x="880" y="140" width="340" height="80" rx="14"/><text x="900" y="172" font-weight="700">Amazon Bedrock · Nova Lite</text><text x="900" y="196" class="m">us.amazon.nova-lite-v1:0 · Converse + tool use</text>
+<rect class="b" x="880" y="270" width="340" height="70" rx="14"/><text x="900" y="300" font-weight="700">DynamoDB</text><text x="900" y="322" class="m">households · hashed tokens · audit chain · advice</text>
+<rect class="b" x="880" y="370" width="340" height="56" rx="14"/><text x="900" y="403" font-weight="700">SSM SecureString</text><text x="1060" y="403" class="m">hashes only</text>
+<rect class="b" x="520" y="500" width="160" height="80" rx="14"/><text x="540" y="532" font-weight="700">SQS + DLQ</text><text x="540" y="556" class="m">advice jobs</text>
+<rect class="b" x="720" y="500" width="200" height="80" rx="14"/><text x="740" y="532" font-weight="700">Lambda · advisor</text><text x="740" y="556" class="m">Nova Lite note → own key</text>
+<rect class="off" x="960" y="500" width="260" height="80" rx="14"/><text x="980" y="532" font-weight="700" style="fill:#7d8f94">AgentCore Runtime (off)</text><text x="980" y="556" class="m">in CDK behind agentImageUri; not deployed</text>
+<rect class="b" x="290" y="140" width="180" height="80" rx="14"/><text x="310" y="172" font-weight="700">CloudWatch + Budgets</text><text x="310" y="196" class="m">3 alarms · fixwise-monthly</text>
+<path class="l" d="M130 190 V500"/><path class="c" d="M130 390 V500"/><path class="l" d="M230 540 H290"/><path class="l" d="M470 540 C500 540 500 400 520 400"/>
+<path class="c" d="M810 280 C850 280 850 180 880 180"/><path class="l" d="M810 320 C845 320 845 305 880 305"/><path class="l" d="M810 360 C845 360 845 398 880 398"/>
+<path class="c d" d="M700 440 C700 470 650 475 600 475 C400 475 300 640 232 572"/><text x="300" y="630" fill="#1ec8ff" font-size="12">MCP client → public /mcp (HTTP)</text>
+<path class="l d" d="M600 440 V500"/><path class="l d" d="M680 540 H720"/><path class="l d" d="M870 500 C870 300 1000 260 1000 220"/><path class="l d" d="M920 520 C940 520 940 330 990 340"/>
+</svg></body></html>

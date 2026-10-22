@@ -1,0 +1,5 @@
+Fixwise
+Copyright 2026 Culltron
+
+Includes data and logic ported from CivicOps (MIT, see vendor/civicops/LICENSE): the municipal
+work-order catalogue, classifier rules and hash-chained audit log. See PROVENANCE.md.

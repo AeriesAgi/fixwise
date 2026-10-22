@@ -1,0 +1,391 @@
+{
+  "version": "fixwise-home-1",
+  "note": "Synthetic demo suppliers and prices (ZAR, excl. VAT). Emails use example.test.; nothing here is a live contact.",
+  "vatRate": "15",
+  "currency": "ZAR",
+  "jobTypes": [
+    {
+      "code": "HOME.GEYSER",
+      "title": "Geyser leak or failure",
+      "trade": "plumbing",
+      "keywords": [
+        "geyser",
+        "water heater",
+        "hot water"
+      ],
+      "lines": [
+        {
+          "sku": "CALLOUT",
+          "name": "Call-out",
+          "qty": 1
+        },
+        {
+          "sku": "LAB-PLUMB",
+          "name": "Plumber labour (hours)",
+          "qty": 2
+        },
+        {
+          "sku": "GEY-VALVE",
+          "name": "Pressure control valve",
+          "qty": 1
+        },
+        {
+          "sku": "GEY-DRIP",
+          "name": "Drip tray and overflow",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "code": "HOME.DRAIN",
+      "title": "Blocked drain or sewer on the property",
+      "trade": "plumbing",
+      "keywords": [
+        "blocked drain",
+        "blocked toilet",
+        "sewer",
+        "drain is blocked"
+      ],
+      "lines": [
+        {
+          "sku": "CALLOUT",
+          "name": "Call-out",
+          "qty": 1
+        },
+        {
+          "sku": "DRAIN-JET",
+          "name": "High-pressure jetting",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "code": "HOME.ROOF",
+      "title": "Roof or ceiling leak",
+      "trade": "roofing",
+      "keywords": [
+        "roof",
+        "ceiling"
+      ],
+      "lines": [
+        {
+          "sku": "CALLOUT",
+          "name": "Call-out",
+          "qty": 1
+        },
+        {
+          "sku": "LAB-ROOF",
+          "name": "Roofer labour (hours)",
+          "qty": 3
+        },
+        {
+          "sku": "ROOF-SEAL",
+          "name": "Waterproofing membrane (m2)",
+          "qty": 4
+        }
+      ]
+    },
+    {
+      "code": "HOME.ELECTRICAL",
+      "title": "Electrical fault in the home",
+      "trade": "electrical",
+      "keywords": [
+        "tripping",
+        "tripped",
+        "trip switch",
+        "no power",
+        "plug",
+        "socket",
+        "light switch"
+      ],
+      "lines": [
+        {
+          "sku": "CALLOUT",
+          "name": "Call-out",
+          "qty": 1
+        },
+        {
+          "sku": "LAB-ELEC",
+          "name": "Electrician labour (hours)",
+          "qty": 2
+        },
+        {
+          "sku": "ELEC-FAULT",
+          "name": "Fault-finding and test certificate check",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "code": "HOME.GATE",
+      "title": "Gate motor or garage door",
+      "trade": "access",
+      "keywords": [
+        "gate",
+        "garage door",
+        "gate motor"
+      ],
+      "lines": [
+        {
+          "sku": "CALLOUT",
+          "name": "Call-out",
+          "qty": 1
+        },
+        {
+          "sku": "LAB-ACCESS",
+          "name": "Technician labour (hours)",
+          "qty": 1
+        },
+        {
+          "sku": "GATE-BATT",
+          "name": "Gate motor battery",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "code": "HOME.APPLIANCE",
+      "title": "Fridge or appliance fault",
+      "trade": "appliance",
+      "keywords": [
+        "fridge",
+        "freezer",
+        "refrigerator",
+        "washing machine",
+        "washer",
+        "dishwasher",
+        "tumble dryer",
+        "oven",
+        "stove",
+        "microwave"
+      ],
+      "lines": [
+        {
+          "sku": "CALLOUT",
+          "name": "Call-out",
+          "qty": 1
+        },
+        {
+          "sku": "APPL-DIAG",
+          "name": "Appliance diagnosis",
+          "qty": 1
+        },
+        {
+          "sku": "LAB-APPL",
+          "name": "Appliance technician labour (hours)",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "code": "HOME.PIPE_LEAK",
+      "title": "Leaking pipe or tap",
+      "trade": "plumbing",
+      "keywords": [
+        "burst pipe",
+        "pipe burst",
+        "leaking pipe",
+        "tap",
+        "toilet",
+        "leak",
+        "dripping tap",
+        "tap drips",
+        "tap is dripping",
+        "drip"
+      ],
+      "lines": [
+        {
+          "sku": "CALLOUT",
+          "name": "Call-out",
+          "qty": 1
+        },
+        {
+          "sku": "LAB-PLUMB",
+          "name": "Plumber labour (hours)",
+          "qty": 2
+        },
+        {
+          "sku": "PIPE-KIT",
+          "name": "Copper repair kit",
+          "qty": 1
+        }
+      ]
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "sup-aqua",
+      "name": "Demo AquaFix Plumbing",
+      "trades": [
+        "plumbing"
+      ],
+      "rating": 4.8,
+      "jobs": 312,
+      "etaHours": 3,
+      "email": "aquafix@example.test",
+      "status": "active",
+      "afterHours": true,
+      "prices": {
+        "CALLOUT": "450.00",
+        "LAB-PLUMB": "520.00",
+        "GEY-VALVE": "780.00",
+        "GEY-DRIP": "310.00",
+        "PIPE-KIT": "260.00",
+        "DRAIN-JET": "1450.00"
+      }
+    },
+    {
+      "id": "sup-flow",
+      "name": "Demo FlowRight Plumbers",
+      "trades": [
+        "plumbing"
+      ],
+      "rating": 4.5,
+      "jobs": 140,
+      "etaHours": 6,
+      "email": "flowright@example.test",
+      "status": "active",
+      "afterHours": false,
+      "prices": {
+        "CALLOUT": "350.00",
+        "LAB-PLUMB": "480.00",
+        "GEY-VALVE": "720.00",
+        "GEY-DRIP": "290.00",
+        "PIPE-KIT": "240.00",
+        "DRAIN-JET": "1290.00"
+      }
+    },
+    {
+      "id": "sup-budget",
+      "name": "Demo Budget Pipes",
+      "trades": [
+        "plumbing"
+      ],
+      "rating": 3.9,
+      "jobs": 58,
+      "etaHours": 24,
+      "email": "budgetpipes@example.test",
+      "status": "active",
+      "afterHours": false,
+      "prices": {
+        "CALLOUT": "250.00",
+        "LAB-PLUMB": "390.00",
+        "GEY-VALVE": "690.00",
+        "GEY-DRIP": "260.00",
+        "PIPE-KIT": "210.00",
+        "DRAIN-JET": "1100.00"
+      }
+    },
+    {
+      "id": "sup-volt",
+      "name": "Demo VoltSafe Electrical",
+      "trades": [
+        "electrical",
+        "access"
+      ],
+      "rating": 4.7,
+      "jobs": 205,
+      "etaHours": 4,
+      "email": "voltsafe@example.test",
+      "status": "active",
+      "afterHours": true,
+      "prices": {
+        "CALLOUT": "495.00",
+        "LAB-ELEC": "560.00",
+        "ELEC-FAULT": "650.00",
+        "LAB-ACCESS": "480.00",
+        "GATE-BATT": "540.00"
+      }
+    },
+    {
+      "id": "sup-spark",
+      "name": "Suspended Sparks Ltd",
+      "trades": [
+        "electrical"
+      ],
+      "rating": 4.1,
+      "jobs": 33,
+      "etaHours": 2,
+      "email": "sparks@example.test",
+      "status": "suspended",
+      "afterHours": true,
+      "prices": {
+        "CALLOUT": "300.00",
+        "LAB-ELEC": "400.00",
+        "ELEC-FAULT": "500.00"
+      }
+    },
+    {
+      "id": "sup-roof",
+      "name": "Demo TopCover Roofing",
+      "trades": [
+        "roofing"
+      ],
+      "rating": 4.6,
+      "jobs": 97,
+      "etaHours": 48,
+      "email": "topcover@example.test",
+      "status": "active",
+      "afterHours": false,
+      "prices": {
+        "CALLOUT": "400.00",
+        "LAB-ROOF": "450.00",
+        "ROOF-SEAL": "380.00"
+      }
+    },
+    {
+      "id": "sup-gate",
+      "name": "Demo GateGuru",
+      "trades": [
+        "access"
+      ],
+      "rating": 4.4,
+      "jobs": 121,
+      "etaHours": 8,
+      "email": "gateguru@example.test",
+      "status": "active",
+      "afterHours": false,
+      "prices": {
+        "CALLOUT": "380.00",
+        "LAB-ACCESS": "420.00",
+        "GATE-BATT": "495.00"
+      }
+    },
+    {
+      "id": "sup-cool",
+      "name": "Demo CoolFix Appliances",
+      "trades": [
+        "appliance"
+      ],
+      "rating": 4.7,
+      "jobs": 204,
+      "etaHours": 5,
+      "email": "coolfix@example.test",
+      "status": "active",
+      "afterHours": false,
+      "prices": {
+        "CALLOUT": "395.00",
+        "APPL-DIAG": "350.00",
+        "LAB-APPL": "480.00"
+      }
+    },
+    {
+      "id": "sup-hometech",
+      "name": "Demo HomeTech Appliance Repairs",
+      "trades": [
+        "appliance"
+      ],
+      "rating": 4.4,
+      "jobs": 121,
+      "etaHours": 20,
+      "email": "hometech@example.test",
+      "status": "active",
+      "afterHours": false,
+      "prices": {
+        "CALLOUT": "320.00",
+        "APPL-DIAG": "300.00",
+        "LAB-APPL": "420.00"
+      }
+    }
+  ]
+}

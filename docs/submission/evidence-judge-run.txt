@@ -1,0 +1,44 @@
+
+1. Unauthenticated calls
+  ✔ /mcp: 401 with WWW-Authenticate resource_metadata (MCP 2025-11-25)
+  ✔ /alexa/mcp: 401 with no WWW-Authenticate (Alexa+ onboarding rule)
+
+2. OAuth discovery
+  ✔ protected resource https://alexa.culltron.app/mcp
+  ✔ authorization server https://alexa.culltron.app · PKCE S256 · scopes fixwise.read fixwise.act
+
+3. Account linking (OAuth 2.1 + PKCE S256)
+  ✔ signed in headless and approved consent
+  ✔ access token issued (3600s, scope "fixwise.read fixwise.act"), refresh token: yes
+
+4. MCP session (Streamable HTTP)
+  ✔ initialize → fixwise 1.0.0, protocol 2025-11-25
+  ✔ 11 tools: report_problem, check_status, list_issues, compare_quotes, book_repair, cancel_booking, close_issue, remember, recall, activity, disconnect
+  ✔ 3 MCP Apps UI resources: ui://fixwise/issue, ui://fixwise/quotes, ui://fixwise/approval
+
+5. Demo story as real tool calls
+
+  → fixwise_report_problem {"description":"The geyser's leaking through the ceiling and the street light outside has been out for two days","area":"Melville"}  237 ms · card ui://fixwise/issue
+    First: Switch the geyser off at the distribution board, then close the cold-water inlet valve on top of the geyser. I've logged the streetlight fault with Electricity for Melville. Your reference is CO 47026, priority medium. For the geyser leak or failure, I have 3 quotes. Best value is Demo AquaFix Plumbing, 2967 rand including VAT, about 3 hours away. Want me to book it, or compare them?
+
+  → fixwise_compare_quotes {"issue":"FX-843724"}  145 ms · card ui://fixwise/quotes
+    First: Demo AquaFix Plumbing, 2967 rand, about 3 hours, rated 4.8. Second: Demo FlowRight Plumbers, 2668 rand, about 6 hours, rated 4.5. Third: Demo Budget Pipes, 2277 rand, about 24 hours, rated 3.9. Say "book the first one" or name the supplier.
+
+  → fixwise_book_repair {"issue":"FX-843724","rank":1}  157 ms · card ui://fixwise/approval
+    To confirm: Demo AquaFix Plumbing, tomorrow morning, 2967 rand including VAT, paid on completion. Shall I book it?
+
+  → fixwise_book_repair {"approval_id":"AP-F9DB5A","confirm":true}  150 ms · card ui://fixwise/approval
+    Booked. Demo AquaFix Plumbing is coming tomorrow morning. Your booking reference is BK 5A3B10. I'll keep an eye on the municipal side too.
+
+  → fixwise_check_status {"issue":"FX-843724"}  165 ms · card ui://fixwise/issue
+    Municipal case CO 47026 is logged (simulated feed). Demo AquaFix Plumbing is booked, tomorrow morning, booking BK 5A3B10.
+
+  → fixwise_activity {}  143 ms
+    23 recorded actions. Audit chain verified.
+
+  → fixwise_close_issue {"issue":"FX-843724"}  164 ms
+    Marked as fixed. Glad that is sorted.
+
+6. Result
+  ✔ all checks passed · 7 tool calls · round-trip p50 157 ms, max 237 ms from your machine (Alexa+ budget 500 ms)
+  Try it yourself: node judge.mjs --interactive
