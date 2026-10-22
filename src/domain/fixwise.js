@@ -188,7 +188,7 @@ function explainQuotes(i, q) {
   if (cheap === best) { const big = [...best.lines].sort((a, b) => b.totalCents - a.totalCents)[0]; return { table, speech: `${nm(best)} is both best value and cheapest, ${spokenRand(best.totalCents)} with VAT. ${big.name.replace(/ \(.*\)/, '')} is the biggest part, ${spokenRand(big.totalCents)}.` }; }
   const diffs = best.lines.map((l) => ({ name: l.name.replace(/ \(.*\)/, '').toLowerCase(), d: l.totalCents - ((cheap.lines.find((m) => m.sku === l.sku) || {}).totalCents || 0) })).sort((a, b) => b.d - a.d);
   const save = best.totalCents - cheap.totalCents;
-  const why = [best.etaHours < cheap.etaHours ? `come in about ${best.etaHours} hours, not ${cheap.etaHours}` : null, best.rating > cheap.rating ? `are rated ${best.rating}, not ${cheap.rating}` : null].filter(Boolean).join(' and ');
+  const why = [best.etaHours < cheap.etaHours ? `come in about ${best.etaHours} hours, not ${cheap.etaHours}` : null, best.rating > cheap.rating ? `are rated ${best.rating}, not ${cheap.rating}` : null].filter(Boolean).join(', and ');
   return { table, speech: `${nm(best)} costs ${spokenRand(save)} more than ${nm(cheap)}, mostly ${diffs[0].name}.${why ? ` They ${why}.` : ''} If waiting is fine, ${nm(cheap)} saves you ${spokenRand(save)}.` };
 }
 
@@ -453,5 +453,5 @@ export async function escalate(env, h, args) {
   i.case.escalatedMs = Date.now();
   i.updates.push({ at: i.case.escalation.at, text: `Escalated ${i.case.escalation.reference}` });
   await audit(h, 'household', 'case.escalated', `${i.case.reference} ${i.case.escalation.reference}`);
-  return say(`Done. I've escalated case ${spell(i.case.reference)} to your ward councillor and the municipal service desk, reference ${spell(i.case.escalation.reference)}. In this demo the escalation is recorded, not actually sent. I'll tell you when the crew is assigned.`, { escalated: i.case.escalation, issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
+  return say(`Done. I've escalated case ${spell(i.case.reference)} to your ward councillor and the municipal service desk, reference ${spell(i.case.escalation.reference)}. In this demo the escalation is recorded, not actually sent. Ask me any time for an update.`, { escalated: i.case.escalation, issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
 }

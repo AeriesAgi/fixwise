@@ -9,6 +9,6 @@ export function localAdvice(i) {
   if (t.includes('ELEC')) tips.push('Note which circuit trips and when. Ask for a certificate of compliance if wiring is replaced.');
   if (t.includes('ROOF')) tips.push('Move valuables away from the wet ceiling and put a bucket under any bulge.');
   if (t.includes('STREETLIGHT')) tips.push('Neighbours reporting the same pole helps; the municipality links duplicates to one case.');
-  if (!tips.length) tips.push('Keep your reference handy; I will tell you when anything changes.');
+  if (!tips.length) tips.push('Keep your reference handy and ask me any time for an update.');
   return { text: tips.join(' '), spoken: tips[0], source: 'deterministic', at: new Date().toISOString() };
 }

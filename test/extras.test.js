@@ -29,7 +29,7 @@ test('booking carries a generic load-shedding tip (not live data); "why is it mo
   const env = await makeEnv(); const { say } = sayer(env, 'explainflow0001');
   await say('My geyser is leaking in Melville');
   const e = await say('Why is the first one more expensive?'); assert.equal(e.planner, 'explain-guard');
-  assert.match(e.speech, /^AquaFix Plumbing costs R690 more than Budget Pipes, mostly .+\. They come in about 3 hours, not 24 and are rated 4\.8, not 3\.9\. If waiting is fine, Budget Pipes saves you R690\.$/);
+  assert.match(e.speech, /^AquaFix Plumbing costs R690 more than Budget Pipes, mostly .+\. They come in about 3 hours, not 24, and are rated 4\.8, not 3\.9\. If waiting is fine, Budget Pipes saves you R690\.$/);
   assert.ok(e.speech.split(/\s+/).length <= 40); assert.ok(e.card.data.explain.rows.length >= 3);
   await say('Book the best one'); const b = await say('Yes, book it');
   assert.match(b.card.data.booking.loadShedding.tip, /check your area's schedule/); assert.match(b.card.data.booking.loadShedding.source, /not live/);
