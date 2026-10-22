@@ -59,3 +59,9 @@ test('landlord view: signed read-only page with live repairs; tampered link fail
   assert.match(page.headers.get('content-security-policy'), /default-src 'none'/);
   const bad = await call(env, u.pathname + u.search.replace(/s=.{3}/, 's=xxx')); assert.equal(bad.status, 404);
 });
+
+test('quotes card renders the explain table', async () => {
+  const { RESOURCES } = await import('../src/ui/cards.js');
+  const r = RESOURCES.find((x) => x.uri.endsWith('/quotes'));
+  assert.match(r.html, /What you pay for/);
+});

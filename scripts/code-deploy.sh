@@ -11,6 +11,7 @@ if [ "${1:-}" = "--rollback" ]; then
   curl -fsS "$URL" -o build/rollback.zip && aws lambda update-function-code --function-name "$F" --zip-file fileb://build/rollback.zip >/dev/null
   aws lambda wait function-updated --function-name "$F"; echo "rolled back to version $2"; exit 0
 fi
+PREV=$(aws lambda get-alias --function-name "$F" --name live --query FunctionVersion --output text)
 npm test >/dev/null && gitleaks git --no-banner . >/dev/null 2>&1
 ./scripts/build-lambda.sh
 rm -f build/fx.zip; (cd build/lambda && python3 -c "import shutil;shutil.make_archive('../fx','zip','.')")
@@ -19,3 +20,9 @@ aws lambda wait function-updated --function-name "$F"
 N=$(aws lambda publish-version --function-name "$F" --description "${1:-code deploy} $(git rev-parse --short HEAD)" --query Version --output text)
 aws lambda update-alias --function-name "$F" --name live --function-version "$N" >/dev/null
 echo "deployed version $N (rollback: scripts/code-deploy.sh --rollback <previous version>)"
+if [ "${SKIP_SMOKE:-}" != 1 ]; then
+  if ! timeout 600 python3 scripts/e2e-smoke.py "${SMOKE_URL:-https://alexa.culltron.app}" ${SMOKE_SHOTS:-}; then
+    echo "E2E smoke failed on version $N: rolling back to $PREV"
+    "$0" --rollback "$PREV"; aws lambda update-alias --function-name "$F" --name live --function-version "$PREV" >/dev/null; exit 1
+  fi
+fi
