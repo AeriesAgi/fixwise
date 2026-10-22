@@ -12,7 +12,8 @@ if [ "${1:-}" = "--rollback" ]; then
   aws lambda wait function-updated --function-name "$F"; echo "rolled back to version $2"; exit 0
 fi
 PREV=$(aws lambda get-alias --function-name "$F" --name live --query FunctionVersion --output text)
-npm test >/dev/null && gitleaks git --no-banner . >/dev/null 2>&1
+npm test >/dev/null || { echo "tests failed: not deploying"; exit 1; }
+gitleaks git --no-banner . >/dev/null 2>&1 || { echo "gitleaks found something: not deploying"; exit 1; }
 ./scripts/build-lambda.sh
 rm -f build/fx.zip; (cd build/lambda && python3 -c "import shutil;shutil.make_archive('../fx','zip','.')")
 aws lambda update-function-code --function-name "$F" --zip-file fileb://build/fx.zip >/dev/null

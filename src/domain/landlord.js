@@ -37,8 +37,8 @@ export function renderLandlord(h) {
     if (i.safety?.steps?.length && i.state !== 'closed') x += `<div class="safety"><b>Safety step given to the tenant:</b> ${esc(i.safety.steps[0])}</div>`;
     if (i.case) x += `<div class="row"><span>Municipal case <b>${esc(i.case.reference)}</b><span class="pill">simulated feed</span></span><span class="m">${esc(i.case.department || '')}${i.case.escalation ? ' · escalated ' + esc(i.case.escalation.reference) : ''}</span></div>`;
     if (i.booking) x += `<div class="row"><span>Booked <b>${esc(i.booking.supplier)}</b> · ${esc(i.booking.visit?.label || i.booking.slot)}</span><b>${esc(i.booking.total)}</b></div>${i.booking.rating ? `<div class="m">Tenant rated ${i.booking.rating.stars}/5${i.booking.rating.fixed ? ', fixed' : ', not fixed'}</div>` : ''}`;
-    for (const b of (i.pastBookings || []).filter((b) => b.rating && !b.rating.fixed)) x += `<div class="m">Earlier visit: ${esc(b.supplier)} · ${esc(b.visit?.label || b.slot || '')} · not fixed, tenant rated ${b.rating.stars}/5</div>`;
     else if (i.home?.quotes?.length) x += `<div class="row"><span>Best quote <b>${esc(i.home.quotes[0].supplier)}</b> · ~${esc(i.home.quotes[0].etaHours)} h</span><b>${fmt(i.home.quotes[0].totalCents)}</b></div><div class="m">${i.home.quotes.length} quotes incl. 15% VAT · not booked yet</div>`;
+    for (const b of (i.pastBookings || []).filter((b) => b.rating && !b.rating.fixed)) x += `<div class="m">Earlier visit: ${esc(b.supplier)} · ${esc(b.visit?.label || b.slot || '')} · not fixed, tenant rated ${b.rating.stars}/5</div>`;
     return x + '</section>';
   };
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Fixwise · landlord view</title><style>${CSS}</style></head><body><main>
