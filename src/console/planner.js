@@ -2,7 +2,7 @@
 // Fixwise MCP tools to call and with what arguments, the way Alexa+ reasons over an MCP server's tool catalogue.
 // Safety rails stay in code, not the prompt: a booking is only confirmed by a clear yes to a pending approval.
 export const DEFAULT_MODEL = 'us.amazon.nova-lite-v1:0';
-const EXCLUDED = new Set(['fixwise_disconnect', 'fixwise_diagnose_photo', 'fixwise_escalate', 'fixwise_rate_repair']); // the console handles disconnect, photo uploads and escalation (a confirmation flow) itself
+const EXCLUDED = new Set(['fixwise_disconnect', 'fixwise_diagnose_photo', 'fixwise_escalate', 'fixwise_rate_repair', 'fixwise_share_with_landlord']); // the console handles disconnect, photo uploads and escalation (a confirmation flow) itself
 
 const SYSTEM = `You are Alexa+ with the Fixwise add-on, for South African households. Decide which Fixwise tools to call for the customer's latest message.
 Rules:

@@ -4,6 +4,7 @@ import { HOME, classifyHomeAll, priceQuotes, isAvoided, rand, spokenRand } from 
 import { triage } from './safety.js';
 import { searchMemory } from './memory-search.js';
 import { sha256, sha256hex } from '../util.js';
+import { landlordLink } from './landlord.js';
 import { visitWindow, icsLink, partsFor, PARTS_NOTE, loadSheddingTip } from './calendar.js';
 
 const UTILITY_SAFETY = {
@@ -341,6 +342,14 @@ export async function rateRepair(env, h, args) {
   if (isFixed) { if (!i.case || i.case.stageIndex >= 4) i.state = 'closed'; bits.push(`I've marked the ${shortTitle(i)} as fixed.`); }
   else { i.pastBookings = [...(i.pastBookings || []), i.booking].slice(-5); i.booking = null; bits.push(`I'll keep the ${shortTitle(i)} open. Want me to compare the other quotes?`); }
   return say(bits.join(' '), { rating: { stars, fixed: isFixed }, issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
+}
+
+export async function shareWithLandlord(env, h, args, ctx) {
+  const l = ctx?.origin ? landlordLink(env, ctx.origin, h.key) : null;
+  if (!l) return err('Sharing is unavailable right now.');
+  const open = h.s.issues.filter((x) => x.state !== 'closed');
+  await audit(h, 'household', 'landlord.link', l.expires);
+  return say(`Here's a read-only page for your landlord, valid for 7 days. I can't send it for you, so share it from the screen.`, { issues: open.slice(-5).reverse().map((x) => publicIssue(env, x)), landlord: l }, { ui: { resourceUri: 'ui://fixwise/issue' } });
 }
 
 export async function closeIssue(env, h, args) {

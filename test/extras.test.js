@@ -47,3 +47,15 @@ test('Afrikaans: Nova translates in and out, the turn runs in English, honest ab
   const bad = await (await call(env, '/console/api/say', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid: 'forged.x', text: 'hallo', lang: 'zu' }) })).json();
   assert.equal(bad.error, 'bad_session');
 });
+
+test('landlord view: signed read-only page with live repairs; tampered link fails; never claims to send', async () => {
+  const env = await makeEnv(); const { say } = sayer(env, 'landlord0001');
+  await say('My geyser is leaking in Melville');
+  const r = await say('Share this with my landlord'); assert.equal(r.planner, 'landlord-guard');
+  assert.match(r.speech, /read-only page for your landlord.*I can't send it for you/);
+  const u = new URL(r.card.data.landlord.url); assert.equal(u.pathname, '/landlord');
+  const page = await call(env, u.pathname + u.search); assert.equal(page.status, 200);
+  const body = await page.text(); assert.match(body, /Geyser leak or failure/); assert.match(body, /read-only/); assert.match(body, /R2,967/);
+  assert.match(page.headers.get('content-security-policy'), /default-src 'none'/);
+  const bad = await call(env, u.pathname + u.search.replace(/s=.{3}/, 's=xxx')); assert.equal(bad.status, 404);
+});

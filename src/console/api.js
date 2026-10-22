@@ -195,6 +195,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     }
     else if (/\b(rate|rating)\b.*\b(plumber|electrician|contractor|them|him|her|supplier|repair|job)\b|\b[1-5] stars?\b/i.test(text)) { planner = 'rating-guard'; const r = parseRating(text); calls = [{ tool: 'fixwise_rate_repair', args: { ...(r.stars ? { stars: r.stars } : {}), ...(r.fixed !== null ? { fixed: r.fixed } : {}) } }]; }
     else if (/\b(why|explain|break ?down|what am i paying|how (can|do) i save|cheaper option)\b/i.test(text) && /\b(price|cost|expensive|more|quote|pay|save|cheaper|charge)/i.test(text)) { planner = 'explain-guard'; calls = [{ tool: 'fixwise_compare_quotes', args: { explain: true } }]; }
+    else if (/\b(landlord|letting agent|rental agent|property (manager|owner)|my agent)\b/i.test(text)) { planner = 'landlord-guard'; calls = [{ tool: 'fixwise_share_with_landlord', args: {} }]; }
     else if (dialog.pendingEscalation && YESNO.test(text)) { // "want me to escalate?" -> yes/no decided in code
       planner = 'confirmation-guard'; const id = dialog.pendingEscalation; delete dialog.pendingEscalation;
       if (!/\b(yes|yeah|yep|sure|go ahead|do it|confirm|please do)\b/i.test(text)) { await kvPut(env, dkey, dialog, 86400); return json({ speech: "Okay, I won't escalate it yet. I'll keep watching the case.", planner, calls: [], totalMs: Date.now() - t0 }); }
