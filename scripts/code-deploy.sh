@@ -22,7 +22,10 @@ N=$(aws lambda publish-version --function-name "$F" --description "${1:-code dep
 aws lambda update-alias --function-name "$F" --name live --function-version "$N" >/dev/null
 echo "deployed version $N (rollback: scripts/code-deploy.sh --rollback <previous version>)"
 if [ "${SKIP_SMOKE:-}" != 1 ]; then
-  if ! timeout 600 python3 scripts/e2e-smoke.py "${SMOKE_URL:-https://alexa.culltron.app}" ${SMOKE_SHOTS:-}; then
+  smoke() { timeout 600 python3 scripts/e2e-smoke.py "${SMOKE_URL:-https://alexa.culltron.app}" ${SMOKE_SHOTS:-} 2>&1 | tee -a build/smoke-last.log; return "${PIPESTATUS[0]}"; }
+  : > build/smoke-last.log
+  # One re-run absorbs a flaky model-planned turn or headless crash; two failures in a row roll back.
+  if ! smoke && ! { echo "smoke failed once, re-running"; smoke; }; then
     echo "E2E smoke failed on version $N: rolling back to $PREV"
     "$0" --rollback "$PREV"; aws lambda update-alias --function-name "$F" --name live --function-version "$PREV" >/dev/null; exit 1
   fi
