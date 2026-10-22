@@ -45,6 +45,7 @@ const FILLER = /^\W*(so|um+|uh+|erm+|hmm+|ah+|oh|ok(ay)?|and|but|the|a|yeah|yes|
 const GREETING = /^\W*(hi|hello|hey|hallo|howzit|sawubona|molo|good (morning|afternoon|evening))\b[\w\s,'?!.]*$/i;
 const SCOPE_AREA = /\b(yes|yeah|yep|they are|they're|everyone|everybody|whole (street|area|road|suburb)|neighbou?rs? (are|is) (also )?(off|out|without)|also off|also without|same here|no,? (nothing|it) (has|hasn't)? ?tripped|nothing tripped|not tripped|hasn't tripped)\b/i;
 const SCOPE_HOUSE = /\b(just (us|me|our)|only (us|me|our)|neighbou?rs? (have|still have|are fine|are on|aren't|are not)|they have (power|water|lights)|it (has )?tripped|the main switch (has )?tripped|switch is down|it's tripped|no,? they('re| are) fine|they're fine)\b/i;
+const SHOW_ME = /^\W*(ok(ay)?,?\s*)?(please\s*)?(show|let me see|can i see)( me)?( it| that| this| the thing| the card| again)?\W*(again)?\W*$/i;
 const YESNO = /\b(anyway|yes|yeah|yep|sure|go ahead|book it|do it|confirm|please do|no|nope|don't|do not|not now|wait|hold off)\b/i;
 
 function llmEnabled(env) { return env.CONSOLE_LLM !== '0' && (env.BEDROCK || env.CONSOLE_LLM === '1' || env.AWS_LAMBDA_FUNCTION_NAME); }
@@ -133,6 +134,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     const sc = d.result?.structuredContent || {};
     if (sc.needsArea) dialog.awaitingArea = true;
     dialog.lastTool = 'fixwise_diagnose_photo';
+    if (d.result?._meta?.ui?.resourceUri) dialog.lastCard = { uri: d.result._meta.ui.resourceUri, data: sc };
     dialog.hist = [...(dialog.hist || []), { u: `[photo]${args.note ? ' ' + args.note : ''}`, a: speech.slice(0, 300) }].slice(-4);
     await kvPut(env, dkey, dialog, 86400);
     const dx = sc.diagnosis;
@@ -166,6 +168,10 @@ export async function routeConsole(req, env, url, path, ctx) {
       if (!ok) { dialog.hist = [...(dialog.hist || []), { u: text.slice(0, 300), a: 'Okay, not booked.' }].slice(-4); await kvPut(env, dkey, dialog, 86400); return json({ speech: "Okay, I won't book that one. Say compare quotes to see the others.", planner, calls: [], totalMs: Date.now() - t0 }); }
       calls = [{ tool: 'fixwise_book_repair', args: { ...held, over_budget_ok: true } }];
     }
+    else if (SHOW_ME.test(text) && dialog.lastCard) { // "okay show me the thing": show the latest card again, no tool guessing
+      await kvPut(env, dkey, dialog, 86400);
+      return json({ speech: "Here it is.", planner: 'show-guard', calls: [], tool: dialog.lastTool || null, totalMs: Date.now() - t0, card: dialog.lastCard, awaitingYes: !!dialog.pendingApproval });
+    }
     else if (dialog.pendingEscalation && YESNO.test(text)) { // "want me to escalate?" -> yes/no decided in code
       planner = 'confirmation-guard'; const id = dialog.pendingEscalation; delete dialog.pendingEscalation;
       if (!/\b(yes|yeah|yep|sure|go ahead|do it|confirm|please do)\b/i.test(text)) { await kvPut(env, dkey, dialog, 86400); return json({ speech: "Okay, I won't escalate it yet. I'll keep watching the case.", planner, calls: [], totalMs: Date.now() - t0 }); }
@@ -181,7 +187,7 @@ export async function routeConsole(req, env, url, path, ctx) {
       try {
         const tools = await listToolsCached(client, dialog);
         const p = await plan(env, { text, dialog, tools });
-        plannerMs = p.ms; tokens = p.usage ? { in: p.usage.inputTokens, out: p.usage.outputTokens } : null; calls = sanitize(p.calls, tools, text); llmText = p.text; planner = 'nova-lite';
+        plannerMs = p.ms; tokens = p.usage ? { in: p.usage.inputTokens, out: p.usage.outputTokens } : null; calls = sanitize(p.calls, tools, text); llmText = p.text && p.text.split(/\s+/).length > 35 ? OUT_OF_SCOPE : p.text; planner = 'nova-lite'; // voice rule: no rambling
         if (calls && calls.length && !calls.some((c) => c.tool === 'fixwise_remember') && /\b(remember|budget|prefer|avoid|never use)\b/i.test(text)) {
           const ra = rememberArgs(text); if (ra && !ra.note) calls.unshift({ tool: 'fixwise_remember', args: ra }); // model dropped half a compound ask
         }
@@ -219,6 +225,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     dialog.hist = [...(dialog.hist || []), { u: text.slice(0, 300), a: speech.slice(0, 300) }].slice(-4);
     await kvPut(env, dkey, dialog, 86400);
     const withCard = [...done].reverse().find((d) => d.result?._meta?.ui?.resourceUri);
+    if (withCard) { dialog.lastCard = { uri: withCard.result._meta.ui.resourceUri, data: withCard.result.structuredContent || {} }; if (JSON.stringify(dialog.lastCard).length > 30000) delete dialog.lastCard; await kvPut(env, dkey, dialog, 86400); }
     const first = done[0] || {};
     return json({ speech, planner, plannerMs, tokens, fallbackReason, totalMs: Date.now() - t0,
       calls: done.map((d) => ({ tool: d.tool, args: d.args, ms: d.ms, transport: d.transport, isError: !!(d.error || d.result?.isError) })),

@@ -58,7 +58,7 @@ function pickMatch(m) {
 const say = (text, structured, meta) => ({ content: [{ type: 'text', text }], structuredContent: structured, ...(meta ? { _meta: meta } : {}) });
 const err = (text) => ({ isError: true, content: [{ type: 'text', text }] });
 
-export const OUT_OF_SCOPE = "Sorry, that's outside what Fixwise does. I sort out things at home and on your street, like a leaking geyser, a power outage or a pothole. What needs fixing?";
+export const OUT_OF_SCOPE = "That's outside what Fixwise does. I handle repairs at home and on your street, like a leaking geyser or a power outage. What's broken?";
 // "in Sandton", "on Jan Smuts Avenue", "at 12 Oak Street": capitalised place words after a preposition.
 export function extractArea(text) {
   const m = /\b(?:in|on|at|near|outside)\s+((?:\d{1,4}\s+)?(?:[A-Z][\w'-]+)(?:\s+[A-Z][\w'-]+){0,3})/.exec(String(text));
@@ -111,23 +111,25 @@ export async function reportProblem(env, h, args, ctx) {
   }
   const needsArea = !!(issue.case && !issue.case.area && !issue.case.duplicateOf);
   if (needsArea) h.s.awaitingArea = issue.id; else delete h.s.awaitingArea;
+  // Voice rule: one or two short sentences. Detail (all steps, all quotes) goes on the card, not in speech.
   const parts = [];
   if (safety.emergency) parts.push(safety.emergency);
-  if (safety.steps.length) parts.push('First: ' + safety.steps.join(' '));
+  if (safety.steps.length) parts.push('First: ' + shortStep(safety.steps[0]));
   if (issue.case) parts.push(issue.case.duplicateOf
-    ? `The ${issue.case.title.toLowerCase()} is already logged with the municipality as ${spell(issue.case.reference)}. I've linked it so you get the same updates.`
-    : `I've logged the ${issue.case.title.toLowerCase()} with ${issue.case.department}${issue.case.area ? ` for ${issue.case.area}` : ''}. Your reference is ${spell(issue.case.reference)}, priority ${issue.case.priority.toLowerCase()}.`);
+    ? `The ${issue.case.title.toLowerCase()} is already logged as ${spell(issue.case.reference)}, so I've linked you to it.`
+    : `I've logged the ${issue.case.title.toLowerCase()}${issue.case.area ? ` for ${issue.case.area}` : ''}, case ${spell(issue.case.reference)}.`);
   const withHome = created.filter((x) => x.home);
-  if (withHome.length > 1) parts.push(`I've split that into ${withHome.length} repairs.`);
-  for (const x of withHome) {
-    const q = x.home.quotes;
-    if (q.length) parts.push(`For the ${x.home.title.toLowerCase()}, I have ${q.length} quote${q.length > 1 ? 's' : ''}. Best value is ${q[0].supplier}, ${spokenRand(q[0].totalCents)} including VAT, about ${q[0].etaHours} hours away.`);
-    else parts.push(`I couldn't find an active supplier for the ${x.home.title.toLowerCase()} yet.`);
+  if (withHome.length > 1) parts.push(`I've split that into ${withHome.length} repairs, ${withHome.map((x) => 'the ' + (jobKeywords(x.home.code).find((k) => description.toLowerCase().includes(k)) || x.home.title.toLowerCase().replace(/ or .*$/, ''))).join(' and ')}, with quotes on screen. Which first?`);
+  else if (withHome.length) {
+    const q = withHome[0].home.quotes;
+    parts.push(q.length ? `${q.length} ${withHome[0].home.trade} quote${q.length > 1 ? 's' : ''}: best is ${q[0].supplier.replace(/^Demo /, '')} at ${spokenRand(q[0].totalCents)}. Book it?` : `I couldn't find a supplier for the ${withHome[0].home.title.toLowerCase()} yet.`);
   }
-  if (withHome.some((x) => x.home.quotes.length)) parts.push(withHome.length > 1 ? 'Which one should I book first, or shall I compare them?' : 'Want me to book it, or compare them?');
-  if (needsArea) parts.push('Which suburb or street is the municipal problem in? The crew needs that to find it.');
+  if (needsArea) parts.push('Which suburb or street is it in?');
   return say(parts.join(' '), { issue: publicIssue(env, issue), issues: created.map((x) => publicIssue(env, x)), needsArea }, { ui: { resourceUri: 'ui://fixwise/issue' } });
 }
+// Spoken versions of the longest safety steps (the card keeps the full wording).
+const SHORT = [[/at the distribution board, then close the cold-water inlet valve on top of the geyser\./, 'at the board and close the inlet valve.'], [/, usually near the meter at the boundary\. Keep people away from wet electrical points\./, '. Keep people away from wet plugs.']];
+export const shortStep = (x) => SHORT.reduce((a, [re, to]) => a.replace(re, to), x);
 const spell = (ref) => ref.replace(/-/g, ' ');
 
 export function publicIssue(env, i) {
@@ -137,8 +139,18 @@ export function publicIssue(env, i) {
     booking: i.booking || null, advisorNote: i.advisorNote || null, updates: i.updates.slice(-10), tracker: trackerView(env, i) };
 }
 
+// A compound report keeps the municipal case and the first private repair on one issue. When the customer asks about
+// one of them ("any news on the street light?") answer only about that part.
+const CASE_WORDS = /\b(street ?lights?|lights?|pothole|road|robot|traffic|drain|stormwater|dumping|rubbish|power|electricity|outage|water|sewage|sewer|cable|substation|mini-?sub|meter|pressure|municipal|case|council|CO[- ]?\d+)\b/i;
+export function focusOf(i, ref) {
+  if (!ref || !i?.case || !i?.home) return 'both';
+  const r = String(ref).toLowerCase();
+  const home = i.home.title.toLowerCase().includes(r) || jobKeywords(i.home.code).some((k) => r.includes(k) || k.includes(r));
+  const caseHit = i.case.title.toLowerCase().includes(r) || i.case.reference.toLowerCase() === r || (CASE_WORDS.test(r) && !home);
+  return caseHit && !home ? 'case' : home && !caseHit ? 'home' : 'both';
+}
 export async function checkStatus(env, h, args) {
-  const i = findIssue(h, args.issue);
+  const i = findIssue(h, args.issue); const focus = focusOf(i, args.issue);
   if (!i) {
     const open = h.s.issues.filter((x) => x.state !== 'closed');
     if (args.issue && open.length) return say(`I couldn't find anything about ${args.issue}. You have ${open.length} open: ${open.slice(-5).map((x) => x.home?.title || x.case?.title || x.summary).join('; ')}.`, { issues: open.slice(-5).map((x) => publicIssue(env, x)) });
@@ -146,26 +158,36 @@ export async function checkStatus(env, h, args) {
   }
   const bits = [];
   let offer = null;
-  if (i.case) {
+  if (i.case && focus !== 'home') {
     const v = caseView(env, i.case); const sla = slaOf(env, i.case);
     bits.push(`Municipal case ${spell(v.reference)} is ${v.status.toLowerCase()} (simulated feed).`);
     if (i.case.escalation) bits.push(`It was escalated as ${spell(i.case.escalation.reference)}.`);
     else if (sla?.lapsed) { bits.push(`It's been ${hrs(sla.elapsedMinutes)}, past the ${hrs(sla.targetMinutes)} target. Want me to escalate it to your ward councillor?`); offer = { issue: i.id }; }
   }
-  if (i.booking) bits.push(`${i.booking.supplier} is booked, ${i.booking.slot}, booking ${spell(i.booking.reference)}.`);
-  else if (i.home?.quotes.length) bits.push(`The ${i.home.title.toLowerCase()} isn't booked yet. Best quote is ${spokenRand(i.home.quotes[0].totalCents)} from ${i.home.quotes[0].supplier}.`);
-  if (i.advisorNote) bits.push(i.advisorNote.spoken);
-  return say(bits.join(' ') || 'No updates yet.', { issue: publicIssue(env, i), ...(offer ? { offerEscalation: offer } : {}) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
+  if (focus !== 'case') {
+    if (i.booking) bits.push(`${i.booking.supplier.replace(/^Demo /, '')} is booked, ${i.booking.slot}.`);
+    else if (i.home?.quotes.length) bits.push(`The ${i.home.title.toLowerCase().replace(/ or .*$/, '')} isn't booked yet. Best quote is ${spokenRand(i.home.quotes[0].totalCents)}.`);
+    if (i.advisorNote && !bits.some((b) => /past the/.test(b))) bits.push(i.advisorNote.spoken);
+  }
+  const pi = publicIssue(env, i); if (focus === 'case') { pi.home = null; pi.booking = null; pi.advisorNote = null; pi.tracker = trackerView(env, { ...i, home: null, booking: null }); } else if (focus === 'home') { pi.case = null; pi.tracker = trackerView(env, { ...i, case: null }); }
+  return say(bits.join(' ') || 'No updates yet.', { issue: pi, focus, ...(offer ? { offerEscalation: offer } : {}) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
 }
 
 export async function compareQuotes(env, h, args) {
-  const i = findIssue(h, args.issue);
+  let i = findIssue(h, args.issue); let note = '';
+  if (i && (focusOf(i, args.issue) === 'case' || !i.home)) { // municipal work has no quotes: use the latest issue that does
+    const asked = i.case ? i.case.title.toLowerCase() : 'that';
+    const q = [...h.s.issues].reverse().find((x) => x.home?.quotes.length && x.state !== 'closed');
+    if (!q) return say(`The ${asked} is municipal work, so there's nothing to quote.`, { issue: i.id, quotes: [] });
+    note = `The ${asked} is municipal, so no quotes. For the ${q.home.title.toLowerCase().replace(/ or .*$/, '')}: `; i = q;
+  }
   if (!i?.home) return err('That issue has no private repair to quote.');
   const q = i.home.quotes.filter((x) => !isAvoided(h.s.prefs, x.supplierId, x.supplier)); const cap = h.s.prefs.budgetCapCents;
   if (!q.length) return say('Every supplier on that job is one you asked me to avoid. Tell me if you want to change that.', { issue: i.id, quotes: [] });
   for (const x of q) x.overBudget = cap ? x.totalCents > cap : false; // budget may have been set after quoting
-  const text = q.slice(0, 3).map((x, n) => `${ordinal(n + 1)}: ${x.supplier}, ${spokenRand(x.totalCents)}, about ${x.etaHours} hours, rated ${x.rating}${x.overBudget ? ', over your budget' : ''}.`).join(' ');
-  return say(text + ' Say "book the first one" or name the supplier.', { issue: i.id, quotes: publicIssue(env, i).home.quotes }, { ui: { resourceUri: 'ui://fixwise/quotes' } });
+  const best = q[0]; const cheap = [...q].sort((a, b) => a.totalCents - b.totalCents)[0];
+  const text = `${note}${q.length} quotes on screen. ${best.supplier.replace(/^Demo /, '')} is best value at ${spokenRand(best.totalCents)}${cheap !== best ? `, cheapest is ${cheap.supplier.replace(/^Demo /, '')} at ${spokenRand(cheap.totalCents)}${cheap.overBudget ? '' : ''}` : ''}${best.overBudget ? ', over your budget' : ''}.`;
+  return say(text + ' Which one?', { issue: i.id, quotes: publicIssue(env, i).home.quotes }, { ui: { resourceUri: 'ui://fixwise/quotes' } });
 }
 const ordinal = (n) => ['', 'First', 'Second', 'Third', 'Fourth', 'Fifth'][n] || `Number ${n}`;
 
@@ -306,7 +328,7 @@ export async function diagnosePhoto(env, h, args, ctx) {
   const issue = h.s.issues.find((x) => x.id === rep.structuredContent.issue.id);
   if (issue) { issue.diagnosis = { problem: dx.problem, likelyCause: dx.likelyCause, confidence: dx.confidence, source: 'nova-lite-vision', imageSha256: img.sha256.slice(0, 16) }; issue.updates.push({ at: new Date().toISOString(), text: 'Diagnosed from a photo by Nova Lite' }); }
   await audit(h, 'agent', 'photo.diagnosed', `${issue?.id || ''} conf ${dx.confidence} img ${img.sha256.slice(0, 16)}`);
-  const seen = `From your photo, it looks like ${dx.problem.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}. ${dx.likelyCause ? 'Likely cause: ' + dx.likelyCause.replace(/^./, (c) => c.toLowerCase()).replace(/\.?$/, '.') : ''}`.trim();
+  const seen = `From your photo, it looks like ${dx.problem.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}.`; // the likely cause is on the card
   return say(`${seen} ${rep.content[0].text}`, { ...base, ...rep.structuredContent }, { ui: { resourceUri: 'ui://fixwise/diagnosis' } });
 }
 

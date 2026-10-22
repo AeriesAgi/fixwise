@@ -14,7 +14,8 @@ Rules:
 - When the customer asks for two things in one message, call both tools in that order. Example: "remember our budget is 2000 rand and compare the fridge quotes" -> fixwise_remember {budget_cap_rand: 2000} then fixwise_compare_quotes {issue: "fridge"}.
 - A new problem description is always fixwise_report_problem, even right after quotes or a booking.
 - If the message is not about home or street repairs (weather, music, jokes, shopping), do not call a tool. Reply in one short friendly sentence that Fixwise only handles home and street repairs and ask what needs fixing.
-- If you genuinely cannot tell what they want, do not call a tool; ask one short clarifying question.`;
+- If you genuinely cannot tell what they want, do not call a tool; ask one short clarifying question.
+- Any words you say are spoken aloud on a smart speaker: at most two short sentences, under 30 words. Never list things; the screen shows the detail.`;
 
 export function toBedrockTools(mcpTools) {
   return mcpTools.filter((t) => !EXCLUDED.has(t.name)).map((t) => {

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 export const HOME = JSON.parse(readFileSync(new URL('../../data/home-catalogue.json', import.meta.url), 'utf8'));
 
 const cents = (s) => { const [r, c = ''] = String(s).split('.'); return Number(r) * 100 + Number((c + '00').slice(0, 2)); };
-export const rand = (c) => `R${(c / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u00a0/g, ' ')}`;
+export const rand = (c) => { const r = c / 100; return `R${Math.floor(r).toLocaleString('en-US')}${c % 100 ? '.' + String(c % 100).padStart(2, '0') : ''}`; }; // R2,967 or R2,967.50
 export const spokenRand = (c) => `${Math.round(c / 100)} rand`; // plain digits: TTS reads 2967 as a number, not digit by digit
 
 export function classifyHome(description) {
