@@ -23,7 +23,7 @@ It also remembers your household across sessions. "Any news on the geyser?" work
 | **Parts list** | What the trade may need, with a "why" line, as amazon.co.za search links | Nothing is added to a cart or ordered |
 | **Load-shedding note** | For geyser, electrical, gate and appliance jobs: a tip to check your schedule before the visit | **Generic tip, not live schedule data** (EskomSePush's terms don't allow commercial use) |
 | **Cost explanation** | "Why is the first one more expensive?" speaks the gap and its biggest cause and shows a "What you pay for" line table | Prices come from synthetic demo suppliers |
-| **Rate the plumber** (`fixwise_rate_repair`) | After the visit window, "any news?" asks for 1–5 stars. 2 or less means that supplier is never suggested again. "Not fixed" reopens the job and offers the other quotes | Ratings stay in your household; they are not published |
+| **Rate the plumber** (`fixwise_rate_repair`) | After the visit window, "any news?" asks for 1–5 stars. 2 or less removes that supplier from your open quotes and it is never suggested again. "Not fixed" reopens the job and offers the other quotes; the landlord page lists the failed visit | Ratings stay in your household; they are not published |
 | **Afrikaans / isiZulu** (console) | Amazon Nova Lite translates what you say into English for the tools and translates the reply back (≈1.5 s) | Amazon Polly has no Afrikaans or isiZulu voice, so replies use the device's own voice if it has one, otherwise captions. Cards stay in English. isiZulu is **beta** |
 | **Landlord view** (`fixwise_share_with_landlord`) | A signed, read-only, live page of your repairs, valid 7 days; a tampered link returns 404 | Fixwise does **not send it**; you share it yourself |
 
