@@ -36,7 +36,7 @@ async function defaultBedrock(env) {
 // Returns { calls: [{name,input}], text, ms } or throws (caller falls back to the regex router).
 export async function plan(env, { text, dialog, tools }) {
   const bedrock = env.BEDROCK || await defaultBedrock(env);
-  const ctxNote = [dialog.awaitingArea ? 'Fixwise just asked the customer which suburb or street the municipal problem is in.' : '',
+  const ctxNote = [dialog.awaitingScope ? `Fixwise just asked whether the neighbours are also affected by: "${dialog.awaitingScope.description}". If the customer answers, call fixwise_report_problem with that description and scope area or household.` : '', dialog.awaitingArea ? 'Fixwise just asked the customer which suburb or street the municipal problem is in.' : '',
     dialog.lastTool ? `Previous tool: ${dialog.lastTool}.` : ''].filter(Boolean).join(' ');
   const messages = [...(dialog.hist || []).slice(-4).flatMap((h) => [{ role: 'user', content: [{ text: h.u }] }, { role: 'assistant', content: [{ text: h.a || 'OK.' }] }]),
     { role: 'user', content: [{ text: (ctxNote ? `[context: ${ctxNote}]\n` : '') + text }] }];

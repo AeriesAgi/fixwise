@@ -43,6 +43,8 @@ const HELP = "Hi! I'm listening. Tell me what's broken at home or on your street
 // Stray sounds and fillers the mic picks up ("so", "um", "okay"): a short, warm nudge, no model call.
 const FILLER = /^\W*(so|um+|uh+|erm+|hmm+|ah+|oh|ok(ay)?|and|but|the|a|yeah|yes|no|right|well|like|alexa)\W*$/i;
 const GREETING = /^\W*(hi|hello|hey|hallo|howzit|sawubona|molo|good (morning|afternoon|evening))\b[\w\s,'?!.]*$/i;
+const SCOPE_AREA = /\b(yes|yeah|yep|they are|they're|everyone|everybody|whole (street|area|road|suburb)|neighbou?rs? (are|is) (also )?(off|out|without)|also off|also without|same here|no,? (nothing|it) (has|hasn't)? ?tripped|nothing tripped|not tripped|hasn't tripped)\b/i;
+const SCOPE_HOUSE = /\b(just (us|me|our)|only (us|me|our)|neighbou?rs? (have|still have|are fine|are on|aren't|are not)|they have (power|water|lights)|it (has )?tripped|the main switch (has )?tripped|switch is down|it's tripped|no,? they('re| are) fine|they're fine)\b/i;
 const YESNO = /\b(anyway|yes|yeah|yep|sure|go ahead|book it|do it|confirm|please do|no|nope|don't|do not|not now|wait|hold off)\b/i;
 
 function llmEnabled(env) { return env.CONSOLE_LLM !== '0' && (env.BEDROCK || env.CONSOLE_LLM === '1' || env.AWS_LAMBDA_FUNCTION_NAME); }
@@ -155,6 +157,9 @@ export async function routeConsole(req, env, url, path, ctx) {
       calls = [{ tool: 'fixwise_book_repair', args: { ...held, over_budget_ok: true } }];
     }
     else if (dialog.pendingApproval && YESNO.test(text)) planner = 'confirmation-guard';
+    else if (dialog.awaitingScope && SCOPE_AREA.test(text) !== SCOPE_HOUSE.test(text)) { // answer to "are your neighbours off too?" is decided in code
+      planner = 'scope-guard'; calls = [{ tool: 'fixwise_report_problem', args: { description: dialog.awaitingScope.description, scope: SCOPE_HOUSE.test(text) ? 'household' : 'area', ...(dialog.awaitingScope.area ? { area: dialog.awaitingScope.area } : {}) } }];
+    }
     else if (llmEnabled(env) && await env.KV.incr(`lim:nova:${Math.floor(now() / 3600)}`, 3700) > L.novaPerHour) fallbackReason = 'nova_hourly_ceiling'; // global cost cap
     else if (llmEnabled(env)) {
       try {
@@ -188,7 +193,8 @@ export async function routeConsole(req, env, url, path, ctx) {
       const sc = d.result?.structuredContent || {};
       if (sc.approval) dialog.pendingApproval = sc.approval.id; else if (d.tool === 'fixwise_book_repair') delete dialog.pendingApproval;
       if (d.tool === 'fixwise_book_repair' && sc.overBudget) dialog.pendingOverBudget = Object.fromEntries(Object.entries(d.args || {}).filter(([k]) => ['issue', 'rank', 'pick', 'supplier', 'time_window'].includes(k)));
-      if (d.tool === 'fixwise_report_problem') { if (sc.needsArea) dialog.awaitingArea = true; else delete dialog.awaitingArea; }
+      if (d.tool === 'fixwise_report_problem') { if (sc.needsArea) dialog.awaitingArea = true; else delete dialog.awaitingArea;
+        if (sc.needsScope) dialog.awaitingScope = { description: String(d.args.description || '').slice(0, 600), ...(d.args.area ? { area: d.args.area } : {}) }; else delete dialog.awaitingScope; }
       if (d.tool === 'fixwise_remember' && d.args.area) delete dialog.awaitingArea;
       if (d.args?.rank) dialog.lastRank = d.args.rank;
       dialog.lastTool = d.tool;

@@ -1,10 +1,18 @@
 // Fixwise household service: one spoken problem becomes tracked municipal and private-repair work.
-import { classifyPublic, findDuplicate, simulatedStage, appendChain, verifyChain, STAGES } from './civic.js';
+import { classifyPublic, typeOf, findDuplicate, simulatedStage, appendChain, verifyChain, STAGES } from './civic.js';
 import { HOME, classifyHomeAll, priceQuotes, isAvoided, rand, spokenRand } from './quotes.js';
 import { triage } from './safety.js';
 import { searchMemory } from './memory-search.js';
 import { sha256, sha256hex } from '../util.js';
 
+const UTILITY_SAFETY = {
+  'ELEC.AREA_OUTAGE': { steps: ['Switch off your geyser, pool pump and sensitive electronics, so the surge when power returns does not damage them.', 'Never go near a fallen or cut cable. If one is sparking, call 112.'] },
+  'ELEC.SUBSTATION_TRIP': { level: 'urgent', steps: ['Keep everyone well away from the substation or mini-sub. It may still be live.', 'Switch off sensitive appliances until power is back.'] },
+  'ELEC.CABLE_THEFT': { level: 'urgent', steps: ['Do not touch or move cut cables. They may still be live.', 'If you see the theft happening, call 10111. Do not confront anyone.'] },
+  'SEW.OVERFLOW': { level: 'urgent', steps: ['Keep children and pets away and do not touch the sewage.', 'Wash hands well after any contact, and keep drains in the house covered if it is backing up.'] },
+  'WATER.NO_SUPPLY': { steps: ['Switch the geyser element off at the board if the water is off for long, so it does not run dry.', 'Keep a few litres of drinking water aside, and boil water for the first while after supply comes back.'] },
+  'WATER.METER_LEAK': { steps: ['Do not try to open the meter box seal yourself. Note the meter reading now so you are not billed for the leak.'] },
+};
 const MAX_ISSUES = 50, MAX_MEMORY = 100, APPROVAL_TTL_MS = 15 * 60000;
 const rid = (p) => `${p}-${crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()}`;
 
@@ -61,8 +69,27 @@ export async function reportProblem(env, h, args, ctx) {
   const description = args.description.trim();
   const area = (args.area || extractArea(description) || h.s.prefs.area || '').trim();
   const safety = triage(description);
-  const pub = classifyPublic(description);
+  let pub = classifyPublic(description, args.scope);
+  // "No power" / "no water" alone: one smart question decides household fault vs area outage.
+  if (pub?.scope?.startsWith('ASK.')) {
+    const power = pub.scope === 'ASK.POWER';
+    h.s.awaitingScope = { description: description.slice(0, 600), area, kind: power ? 'power' : 'water', at: Date.now() };
+    return say(power
+      ? "Let's work out if it's just you. Are your neighbours off too? And on your DB board, has the main switch or the earth-leakage switch tripped?"
+      : "Let's work out if it's just you. Do your neighbours have water? And is your stopcock at the meter fully open?",
+      { needsScope: true, kind: power ? 'power' : 'water', ask: 'Call fixwise_report_problem again with the same description and scope "area" if neighbours are affected, or "household" if it is only this home.' });
+  }
+  let houseWater = false, housePower = false;
+  if (pub?.scope) { houseWater = pub.scope === 'HOUSE.WATER'; housePower = pub.scope === 'HOUSE.POWER'; pub = null; }
+  if (pub && UTILITY_SAFETY[pub.code]) { // utility-specific safety replaces generic household tips
+    const own = UTILITY_SAFETY[pub.code]; safety.steps = [...safety.steps.filter((x) => !/^If only your house is off/.test(x)), ...own.steps];
+    if (own.level && safety.level === 'routine') safety.level = own.level;
+  }
+  if (pub?.hazardClass === 'high' && pub.priority === 'Medium') pub.priority = 'High';
+  delete h.s.awaitingScope;
   const homes = classifyHomeAll(description);
+  if (/^HOUSE\.POWER$/.test(classifyPublic(description, args.scope)?.scope || '') && !homes.some((j) => j.code === 'HOME.ELECTRICAL')) homes.unshift(HOME.jobTypes.find((j) => j.code === 'HOME.ELECTRICAL'));
+  if (houseWater && !homes.length) return say("If your neighbours have water, the problem is on your side of the meter. Check the stopcock at the meter is fully open and look for wet patches or a hissing pipe. If it's still off, tell me it's a leaking pipe and I'll get plumber quotes.", { householdWater: true });
   if (!pub && !homes.length && safety.level === 'routine') return say(OUT_OF_SCOPE, { understood: false, outOfScope: true });
   const mk = () => ({ id: rid('FX'), summary: description.slice(0, 280), area, createdMs: Date.now(), state: 'open', safety, updates: [] });
   const issue = mk();
