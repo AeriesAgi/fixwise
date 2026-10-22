@@ -187,7 +187,7 @@ export async function routeConsole(req, env, url, path, ctx) {
       try {
         const tools = await listToolsCached(client, dialog);
         const p = await plan(env, { text, dialog, tools });
-        plannerMs = p.ms; tokens = p.usage ? { in: p.usage.inputTokens, out: p.usage.outputTokens } : null; calls = sanitize(p.calls, tools, text); llmText = p.text && p.text.split(/\s+/).length > 35 ? OUT_OF_SCOPE : p.text; planner = 'nova-lite'; // voice rule: no rambling
+        plannerMs = p.ms; tokens = p.usage ? { in: p.usage.inputTokens, out: p.usage.outputTokens } : null; calls = sanitize(p.calls, tools, text); llmText = p.text && (p.text.split(/\s+/).length > 35 || (!p.calls.length && !/\b(fix|repair|broken|leak|geyser|power|water|where|which|suburb|street)\b/i.test(p.text))) ? OUT_OF_SCOPE : p.text; planner = 'nova-lite'; // voice rule: no rambling
         if (calls && calls.length && !calls.some((c) => c.tool === 'fixwise_remember') && /\b(remember|budget|prefer|avoid|never use)\b/i.test(text)) {
           const ra = rememberArgs(text); if (ra && !ra.note) calls.unshift({ tool: 'fixwise_remember', args: ra }); // model dropped half a compound ask
         }

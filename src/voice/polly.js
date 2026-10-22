@@ -13,7 +13,7 @@ async function defaultPolly(env) {
   });
   return pollyP;
 }
-export const cleanForSpeech = (t) => String(t || '').replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_CHARS);
+export const cleanForSpeech = (t) => String(t || '').replace(/\bR(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d{2}))?\b/g, (m, r) => `${r.replace(/,/g, '')} rand`) /* R2,967 is spoken as '2967 rand' */.replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_CHARS);
 export async function synthesize(env, text, voiceKey = 'en-ZA') {
   const v = VOICES[voiceKey] || VOICES['en-ZA']; const t = cleanForSpeech(text);
   const key = `tts:${v.id}:${createHash('sha256').update(t).digest('hex').slice(0, 40)}`;

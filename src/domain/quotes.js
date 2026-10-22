@@ -5,7 +5,7 @@ export const HOME = JSON.parse(readFileSync(new URL('../../data/home-catalogue.j
 
 const cents = (s) => { const [r, c = ''] = String(s).split('.'); return Number(r) * 100 + Number((c + '00').slice(0, 2)); };
 export const rand = (c) => { const r = c / 100; return `R${Math.floor(r).toLocaleString('en-US')}${c % 100 ? '.' + String(c % 100).padStart(2, '0') : ''}`; }; // R2,967 or R2,967.50
-export const spokenRand = (c) => `${Math.round(c / 100)} rand`; // plain digits: TTS reads 2967 as a number, not digit by digit
+export const spokenRand = (c) => `R${Math.round(c / 100).toLocaleString('en-US')}`; // shown as R2,967; Polly en-ZA reads it as rand
 
 export function classifyHome(description) {
   // Catalogue order is priority order: the root cause (geyser) wins over the symptom (ceiling).
