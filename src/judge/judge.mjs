@@ -96,6 +96,16 @@ await call('fixwise_check_status', { issue });
 await call('fixwise_activity', {});
 await call('fixwise_close_issue', { issue }); // keep the shared judge household tidy
 lat.sort((a, b) => a - b);
-step('6. Result');
+step('6. Console voice (Amazon Polly) returns real MP3');
+{ const sess = await (await fetch(`${BASE}/console/api/session`, { method: 'POST' })).json();
+  if (!sess.sid) die('console session failed');
+  const r = await fetch(`${BASE}/console/api/speak`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid: sess.sid, text: 'Fixwise voice check.' }) });
+  if (r.status !== 200 || r.headers.get('content-type') !== 'audio/mpeg') die(`TTS returned ${r.status} ${r.headers.get('content-type')}`);
+  const b = Buffer.from(await r.arrayBuffer());
+  if (b.includes(Buffer.from([0xef, 0xbf, 0xbd]))) die('TTS bytes were mangled as UTF-8 text');
+  let o = 0; if (b.subarray(0, 3).toString() === 'ID3') o = 10 + ((b[6] << 21) | (b[7] << 14) | (b[8] << 7) | b[9]); // skip the ID3v2 tag
+  if (!(b[o] === 0xff && (b[o + 1] & 0xe0) === 0xe0)) die('TTS audio has no MPEG frame sync');
+  ok(`${b.length} bytes, MPEG frame sync at byte ${o}, voice ${r.headers.get('x-fixwise-voice')}`); }
+step('7. Result');
 ok(`all checks passed · ${lat.length} tool calls · round-trip p50 ${lat[Math.floor(lat.length / 2)].toFixed(0)} ms, max ${lat[lat.length - 1].toFixed(0)} ms from your machine (Alexa+ budget 500 ms)`);
 console.log('  Try it yourself: node judge.mjs --interactive');

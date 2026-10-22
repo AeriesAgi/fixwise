@@ -134,7 +134,7 @@ export function publicIssue(env, i) {
   return { id: i.id, summary: i.summary, area: i.area, state: i.state, createdAt: new Date(i.createdMs).toISOString(), safety: i.safety,
     case: i.case ? caseView(env, i.case) : null,
     home: i.home ? { title: i.home.title, trade: i.home.trade, quotes: i.home.quotes.map((q) => ({ rank: q.rank, supplier: q.supplier, supplierId: q.supplierId, total: rand(q.totalCents), totalCents: q.totalCents, etaHours: q.etaHours, rating: q.rating, tag: q.tag, overBudget: q.overBudget })) } : null,
-    booking: i.booking || null, advisorNote: i.advisorNote || null, updates: i.updates.slice(-10) };
+    booking: i.booking || null, advisorNote: i.advisorNote || null, updates: i.updates.slice(-10), tracker: trackerView(env, i) };
 }
 
 export async function checkStatus(env, h, args) {
@@ -145,11 +145,17 @@ export async function checkStatus(env, h, args) {
     return say('You have no open Fixwise issues. Tell me if something needs fixing.', { issues: [] });
   }
   const bits = [];
-  if (i.case) { const v = caseView(env, i.case); bits.push(`Municipal case ${spell(v.reference)} is ${v.status.toLowerCase()} (simulated feed).`); }
+  let offer = null;
+  if (i.case) {
+    const v = caseView(env, i.case); const sla = slaOf(env, i.case);
+    bits.push(`Municipal case ${spell(v.reference)} is ${v.status.toLowerCase()} (simulated feed).`);
+    if (i.case.escalation) bits.push(`It was escalated as ${spell(i.case.escalation.reference)}.`);
+    else if (sla?.lapsed) { bits.push(`It's been ${hrs(sla.elapsedMinutes)}, past the ${hrs(sla.targetMinutes)} target. Want me to escalate it to your ward councillor?`); offer = { issue: i.id }; }
+  }
   if (i.booking) bits.push(`${i.booking.supplier} is booked, ${i.booking.slot}, booking ${spell(i.booking.reference)}.`);
   else if (i.home?.quotes.length) bits.push(`The ${i.home.title.toLowerCase()} isn't booked yet. Best quote is ${spokenRand(i.home.quotes[0].totalCents)} from ${i.home.quotes[0].supplier}.`);
   if (i.advisorNote) bits.push(i.advisorNote.spoken);
-  return say(bits.join(' ') || 'No updates yet.', { issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/issue' } });
+  return say(bits.join(' ') || 'No updates yet.', { issue: publicIssue(env, i), ...(offer ? { offerEscalation: offer } : {}) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
 }
 
 export async function compareQuotes(env, h, args) {
@@ -302,4 +308,47 @@ export async function diagnosePhoto(env, h, args, ctx) {
   await audit(h, 'agent', 'photo.diagnosed', `${issue?.id || ''} conf ${dx.confidence} img ${img.sha256.slice(0, 16)}`);
   const seen = `From your photo, it looks like ${dx.problem.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}. ${dx.likelyCause ? 'Likely cause: ' + dx.likelyCause.replace(/^./, (c) => c.toLowerCase()).replace(/\.?$/, '.') : ''}`.trim();
   return say(`${seen} ${rep.content[0].text}`, { ...base, ...rep.structuredContent }, { ui: { resourceUri: 'ui://fixwise/diagnosis' } });
+}
+
+// Job tracker: one timeline per issue (municipal stages with the SLA clock, and/or the private repair), plus escalation.
+const hrs = (m) => (m >= 120 ? `${Math.round(m / 60)} hours` : m >= 60 ? '1 hour' : `${Math.max(1, Math.round(m))} minutes`);
+export function slaOf(env, c) {
+  if (!c?.slaTargetMinutes) return null;
+  const elapsed = (Date.now() - c.createdMs) / 60000; const st = caseView(env, c);
+  const resolved = st.status === 'Resolved';
+  return { targetMinutes: c.slaTargetMinutes, elapsedMinutes: Math.round(elapsed), dueAt: new Date(c.createdMs + c.slaTargetMinutes * 60000).toISOString(), lapsed: !resolved && elapsed > c.slaTargetMinutes, resolved, label: `Target ${hrs(c.slaTargetMinutes)} (Fixwise demo target)` };
+}
+export function trackerView(env, i) {
+  const steps = [];
+  steps.push({ key: 'reported', label: 'Reported', detail: i.diagnosis ? 'From a photo, checked by Nova Lite' : 'By voice', at: new Date(i.createdMs).toISOString(), state: 'done' });
+  let sla = null, escalation = null;
+  if (i.case) {
+    const v = caseView(env, i.case); sla = slaOf(env, i.case); escalation = i.case.escalation || null;
+    STAGES.forEach((label, k) => steps.push({ key: `case-${k}`, label: k === 0 ? `Logged · ${i.case.reference}` : label, detail: k === 0 ? i.case.department : '', state: k < v.stageIndex ? 'done' : k === v.stageIndex ? (k === STAGES.length - 1 ? 'done' : 'now') : 'next', municipal: true }));
+    if (escalation) steps.splice(3, 0, { key: 'escalated', label: 'Escalated', detail: escalation.to, at: escalation.at, state: 'done', municipal: true });
+  }
+  if (i.home) {
+    steps.push({ key: 'quotes', label: `${i.home.quotes.length} quotes`, detail: i.home.quotes[0] ? `Best ${rand(i.home.quotes[0].totalCents)}` : '', state: 'done' });
+    steps.push({ key: 'booked', label: i.booking ? `Booked · ${i.booking.supplier}` : 'Book a repair', detail: i.booking ? i.booking.reference : 'Waiting for your yes', state: i.booking ? 'done' : 'now' });
+    steps.push({ key: 'visit', label: i.booking ? `Visit ${i.booking.slot}` : 'Visit', detail: i.booking?.visit?.label || '', state: i.booking ? (i.state === 'closed' ? 'done' : 'now') : 'next' });
+  }
+  steps.push({ key: 'fixed', label: 'Fixed', state: i.state === 'closed' ? 'done' : 'next' });
+  return { title: i.home?.title || i.case?.title || i.summary, steps, sla, escalation, simulatedFeed: !!i.case };
+}
+
+// SLA follow-up and escalation. In this demo the escalation is recorded and shown, not sent: there is no live
+// municipal or councillor channel connected, and the speech and card say so.
+export async function escalate(env, h, args) {
+  const open = [...h.s.issues].reverse().filter((x) => x.case && x.state !== 'closed');
+  const i = args.issue ? findIssue(h, args.issue) : open.find((x) => slaOf(env, x.case)?.lapsed && !x.case.escalation) || open[0];
+  if (!i?.case) return err('There is no open municipal case to escalate.');
+  if (i.case.escalation) return say(`That case is already escalated, reference ${spell(i.case.escalation.reference)}.`, { issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
+  const sla = slaOf(env, i.case);
+  if (!sla?.lapsed) return say(`Case ${spell(i.case.reference)} is still within its ${hrs(sla?.targetMinutes || 0)} target, so it's too early to escalate. I'll keep watching it.`, { issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
+  if (args.confirm !== true) return say(`Case ${spell(i.case.reference)} is ${hrs(sla.elapsedMinutes)} old, past its ${hrs(sla.targetMinutes)} target. Shall I escalate it to your ward councillor?`, { offerEscalation: { issue: i.id }, issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
+  i.case.escalation = { reference: rid('ESC'), to: 'Ward councillor and the municipal service desk', at: new Date().toISOString(), simulated: true, note: 'Demo: recorded and tracked, not sent. No live municipal channel is connected.' };
+  i.case.escalatedMs = Date.now();
+  i.updates.push({ at: i.case.escalation.at, text: `Escalated ${i.case.escalation.reference}` });
+  await audit(h, 'household', 'case.escalated', `${i.case.reference} ${i.case.escalation.reference}`);
+  return say(`Done. I've escalated case ${spell(i.case.reference)} to your ward councillor and the municipal service desk, reference ${spell(i.case.escalation.reference)}. In this demo the escalation is recorded, not actually sent. I'll tell you when the crew is assigned.`, { escalated: i.case.escalation, issue: publicIssue(env, i) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
 }

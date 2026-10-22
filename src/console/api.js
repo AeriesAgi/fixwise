@@ -7,7 +7,7 @@ import { McpHttpClient } from './mcp-client.js';
 import { callTool } from '../mcp/server.js';
 import { issueConsoleToken } from '../oauth/oauth.js';
 import { RESOURCES } from '../ui/cards.js';
-import { OUT_OF_SCOPE } from '../domain/fixwise.js';
+import { OUT_OF_SCOPE, loadHousehold, saveHousehold } from '../domain/fixwise.js';
 import { sha256, kvGet, kvPut, json, SEC_HEADERS, origin, now } from '../util.js';
 import { consolePage, consoleScript } from './page.js';
 import { synthesize, cleanForSpeech } from '../voice/polly.js';
@@ -94,6 +94,16 @@ export async function routeConsole(req, env, url, path, ctx) {
     const sid = String(b.sid || ''); if (!verifySession(env, sid)) return json({ error: 'bad_session' }, 400);
     await kvPut(env, `dlg:${await sha256(sid)}`, {}, 60); return json({ ok: true });
   }
+  if (path === '/console/api/skip-ahead' && req.method === 'POST') { // demo clock: move this demo household's clock forward
+    let b; try { b = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    const sid = String(b.sid || ''); if (!verifySession(env, sid)) return json({ error: 'bad_session' }, 400);
+    const hours = Math.min(96, Math.max(1, Number(b.hours) || 48)); const ms = hours * 3600000;
+    const h = await loadHousehold(env, `console:${await sha256(sid)}`);
+    for (const i of h.s.issues) { i.createdMs -= ms; if (i.case) { i.case.createdMs -= ms; if (i.case.escalatedMs) i.case.escalatedMs -= ms; } }
+    h.s.demoClockHours = (h.s.demoClockHours || 0) + hours;
+    await saveHousehold(env, h);
+    return json({ ok: true, hours, totalHours: h.s.demoClockHours });
+  }
   if (path === '/console/api/speak' && req.method === 'POST') { // Polly neural voice for replies (AWS credits; capped and cached)
     let b; try { b = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
     const sid = String(b.sid || ''); if (!verifySession(env, sid)) return json({ error: 'bad_session' }, 400);
@@ -156,6 +166,12 @@ export async function routeConsole(req, env, url, path, ctx) {
       if (!ok) { dialog.hist = [...(dialog.hist || []), { u: text.slice(0, 300), a: 'Okay, not booked.' }].slice(-4); await kvPut(env, dkey, dialog, 86400); return json({ speech: "Okay, I won't book that one. Say compare quotes to see the others.", planner, calls: [], totalMs: Date.now() - t0 }); }
       calls = [{ tool: 'fixwise_book_repair', args: { ...held, over_budget_ok: true } }];
     }
+    else if (dialog.pendingEscalation && YESNO.test(text)) { // "want me to escalate?" -> yes/no decided in code
+      planner = 'confirmation-guard'; const id = dialog.pendingEscalation; delete dialog.pendingEscalation;
+      if (!/\b(yes|yeah|yep|sure|go ahead|do it|confirm|please do)\b/i.test(text)) { await kvPut(env, dkey, dialog, 86400); return json({ speech: "Okay, I won't escalate it yet. I'll keep watching the case.", planner, calls: [], totalMs: Date.now() - t0 }); }
+      calls = [{ tool: 'fixwise_escalate', args: { issue: id, confirm: true } }];
+    }
+    else if (/\b(escalat\w*|ward councillor|councillor)\b/i.test(text) && !/\b(no|don't|do not)\b/i.test(text)) { planner = 'escalation-guard'; calls = [{ tool: 'fixwise_escalate', args: {} }]; } // asks first; the yes is decided in code
     else if (dialog.pendingApproval && YESNO.test(text)) planner = 'confirmation-guard';
     else if (dialog.awaitingScope && SCOPE_AREA.test(text) !== SCOPE_HOUSE.test(text)) { // answer to "are your neighbours off too?" is decided in code
       planner = 'scope-guard'; calls = [{ tool: 'fixwise_report_problem', args: { description: dialog.awaitingScope.description, scope: SCOPE_HOUSE.test(text) ? 'household' : 'area', ...(dialog.awaitingScope.area ? { area: dialog.awaitingScope.area } : {}) } }];
@@ -191,6 +207,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     // 3. Dialogue state for the next turn.
     for (const d of done) {
       const sc = d.result?.structuredContent || {};
+      if (sc.offerEscalation) dialog.pendingEscalation = sc.offerEscalation.issue; else delete dialog.pendingEscalation;
       if (sc.approval) dialog.pendingApproval = sc.approval.id; else if (d.tool === 'fixwise_book_repair') delete dialog.pendingApproval;
       if (d.tool === 'fixwise_book_repair' && sc.overBudget) dialog.pendingOverBudget = Object.fromEntries(Object.entries(d.args || {}).filter(([k]) => ['issue', 'rank', 'pick', 'supplier', 'time_window'].includes(k)));
       if (d.tool === 'fixwise_report_problem') { if (sc.needsArea) dialog.awaitingArea = true; else delete dialog.awaitingArea;

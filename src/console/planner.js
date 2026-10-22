@@ -2,7 +2,7 @@
 // Fixwise MCP tools to call and with what arguments, the way Alexa+ reasons over an MCP server's tool catalogue.
 // Safety rails stay in code, not the prompt: a booking is only confirmed by a clear yes to a pending approval.
 export const DEFAULT_MODEL = 'us.amazon.nova-lite-v1:0';
-const EXCLUDED = new Set(['fixwise_disconnect', 'fixwise_diagnose_photo']); // the console handles "disconnect" and photo uploads itself
+const EXCLUDED = new Set(['fixwise_disconnect', 'fixwise_diagnose_photo', 'fixwise_escalate']); // the console handles disconnect, photo uploads and escalation (a confirmation flow) itself
 
 const SYSTEM = `You are Alexa+ with the Fixwise add-on, for South African households. Decide which Fixwise tools to call for the customer's latest message.
 Rules:
@@ -20,6 +20,7 @@ export function toBedrockTools(mcpTools) {
   return mcpTools.filter((t) => !EXCLUDED.has(t.name)).map((t) => {
     const props = { ...(t.inputSchema.properties || {}) };
     if (t.name === 'fixwise_book_repair') { delete props.approval_id; delete props.confirm; } // the model cannot confirm a booking
+    if (t.name === 'fixwise_escalate') delete props.confirm;
     return { toolSpec: { name: t.name, description: t.description.slice(0, 900), inputSchema: { json: { type: 'object', properties: props, required: t.inputSchema.required || [] } } } };
   });
 }
@@ -54,7 +55,7 @@ export async function plan(env, { text, dialog, tools }) {
 
 // Code-side guard on whatever the model proposes: unknown tools dropped, confirmation fields stripped, schema enforced by the server.
 // Side-effecting tools need the customer to have actually asked for that action in this turn.
-const INTENT = { fixwise_book_repair: /\b(book|go with|choose|pick|take the|send)\b/i, fixwise_cancel_booking: /\bcancel\b/i, fixwise_close_issue: /\b(fixed|sorted|resolved|close|done)\b/i };
+const INTENT = { fixwise_escalate: /\b(escalat|councillor|push|chase)/i, fixwise_book_repair: /\b(book|go with|choose|pick|take the|send)\b/i, fixwise_cancel_booking: /\bcancel\b/i, fixwise_close_issue: /\b(fixed|sorted|resolved|close|done)\b/i };
 const REMEMBER_ASK = /\b(remember|budget|limit|spend|prefer|avoid|never use|don't use|do not use|i live|we live|we're in|we are in|suburb|area is|mornings?|afternoons?|evenings?|weekends?|note)\b/i;
 const GENERIC = /^(the )?(street|road|outside|home|house|here|kitchen|garden|yard|my street|our street|area|suburb)$/i;
 export function placeNamed(area, text) { const x = String(area).trim(); return !GENERIC.test(x) && /^[A-Z0-9]/.test(x) && String(text).includes(x); }
@@ -63,6 +64,7 @@ export function sanitize(calls, tools, text = '') {
   const out = calls.filter((c) => names.has(c.name) && !EXCLUDED.has(c.name)).map((c) => {
     const a = { ...(c.input && typeof c.input === 'object' ? c.input : {}) };
     if (c.name === 'fixwise_book_repair') { delete a.approval_id; delete a.confirm; }
+    if (c.name === 'fixwise_escalate') delete a.confirm; // a yes to escalation is decided in code
     for (const [k, v] of Object.entries(a)) if (v === null || v === '') delete a[k];
     // A place must be one the customer actually named ("Parkhurst", "Jan Smuts Avenue"), not "street" or "outside".
     if (c.name === 'fixwise_report_problem' && a.area && !placeNamed(a.area, text)) delete a.area;

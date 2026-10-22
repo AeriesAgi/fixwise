@@ -51,3 +51,27 @@ test('planner may not guess the outage scope the customer did not state', async 
   assert.equal(sanitize([{ name: 'fixwise_report_problem', input: { description: 'the power is off', scope: 'area' } }], tools, 'the power is off')[0].args.scope, undefined);
   assert.equal(sanitize([{ name: 'fixwise_report_problem', input: { description: 'no power', scope: 'area' } }], tools, 'no power in the whole street')[0].args.scope, 'area');
 });
+
+test('tracker + SLA follow-up + escalation, with the demo clock', async () => {
+  const env = await makeEnv(); const sid = newSessionFor('trackerconsolesession1');
+  const post = async (path, body) => (await call(env, path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid, ...body }) })).json();
+  await post('/console/api/say', { text: 'no power in the whole street in Melville' });
+  const early = await post('/console/api/say', { text: 'any news on the power?' });
+  assert.equal(early.card.uri, 'ui://fixwise/tracker'); assert.equal(early.card.data.issue.tracker.sla.lapsed, false);
+  const tooEarly = await post('/console/api/say', { text: 'escalate it' }); assert.match(tooEarly.speech, /too early to escalate/);
+  const sk = await post('/console/api/skip-ahead', { hours: 48 }); assert.equal(sk.totalHours, 48);
+  const late = await post('/console/api/say', { text: 'any news on the power?' });
+  assert.match(late.speech, /48 hours, past the 4 hours target\. Want me to escalate/); assert.equal(late.card.data.issue.tracker.sla.lapsed, true);
+  assert.equal(late.card.data.issue.case.status, 'Acknowledged');
+  const yes = await post('/console/api/say', { text: 'yes, escalate it' });
+  assert.equal(yes.planner, 'confirmation-guard'); assert.match(yes.speech, /escalated case .* recorded, not actually sent/);
+  assert.equal(yes.card.data.issue.case.status, 'Crew assigned'); assert.ok(yes.card.data.issue.tracker.steps.some((s) => s.key === 'escalated'));
+  const card = await call(env, '/console/card?uri=ui://fixwise/tracker'); assert.equal(card.status, 200);
+  assert.equal((await call(env, '/console/api/skip-ahead', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid: 'forged', hours: 48 }) })).status, 400);
+});
+
+test('MCP escalate needs a lapsed SLA and an explicit confirm', async () => {
+  const env = await makeEnv(); const { tok } = await link(env); const c = mcpClient(env, tok.access_token);
+  const r = await c.tool('fixwise_report_problem', { description: 'raw sewage running down the road', area: 'Melville' });
+  const e = await c.tool('fixwise_escalate', { issue: r.structuredContent.issue.id, confirm: true }); assert.match(e.content[0].text, /too early/);
+});

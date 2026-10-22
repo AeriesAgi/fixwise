@@ -18,6 +18,12 @@ const STYLE = `:root{--bg:#0d1b1e;--card:#15292d;--ink:#eef6f4;--mut:#9dbab4;--a
 @media(max-width:340px){.dx{grid-template-columns:1fr}.kv{grid-template-columns:1fr}}
 @media(max-height:520px){body{padding:8px}.card{padding:12px;margin-top:6px}.ring{width:58px;height:58px}.ring b{width:46px;height:46px;font-size:15px}.t{font-size:20px;margin:0 0 4px}.kv{margin-top:8px;font-size:14px;gap:3px 10px}}
 @media(min-width:960px){.t{font-size:30px}}
+.tl{list-style:none;margin:14px 0 0;padding:0;position:relative}.tl li{position:relative;padding:0 0 14px 34px}.tl li::before{content:"";position:absolute;left:10px;top:20px;bottom:-2px;width:2px;background:#2c4a50}.tl li:last-child::before{display:none}
+.tl .d{position:absolute;left:2px;top:3px;width:18px;height:18px;border-radius:50%;border:2px solid #3b5c63;background:var(--bg)}.tl .done .d{background:var(--acc);border-color:var(--acc)}.tl .done::before{background:var(--acc)}
+.tl .now .d{border-color:var(--warn);background:#2b2416;box-shadow:0 0 0 0 #ffb45488;animation:pl 1.6s infinite}@keyframes pl{70%{box-shadow:0 0 0 9px #ffb45400}}.tl .next{opacity:.55}.tl b{display:block;font-size:16px}.tl .m{font-size:13px}
+.sla{margin-top:12px}.sla .track{height:8px;border-radius:4px;background:#24403f;overflow:hidden}.sla .fill{height:100%;background:var(--acc)}.sla.late .fill{background:var(--bad)}.sla .row{font-size:13px;color:var(--mut);margin-top:4px}
+.esc{margin-top:12px;padding:10px 12px;border-radius:10px;background:#1d2546;border:1px solid #2e3a6b;color:#cdd6ff;font-size:14px}.late-t{color:var(--bad);font-weight:700}
+.two{display:grid;grid-template-columns:1fr;gap:10px}@media(min-width:760px){.two{grid-template-columns:1.1fr .9fr}}
 .sim{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;background:#2c3550;color:#b9c6ff;margin-left:6px}`;
 const SHELL = (title, render) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>${STYLE}</style></head>
 <body><div id="app"><div class="h">Fixwise</div><div class="card m">Loading…</div></div><script>
@@ -50,9 +56,20 @@ if(i){if(i.safety&&i.safety.steps&&i.safety.steps.length)h+='<div class="card sa
  if(i.home&&i.home.quotes.length){const q=i.home.quotes[0];h+='<div class="card row"><div><b>Best quote</b><div class="m">'+esc(q.supplier)+' · ~'+esc(q.etaHours)+' h · ★'+esc(q.rating)+'</div></div><div class="big">'+esc(q.total)+'</div></div>';}}
 return h;}`;
 
+const TRACKER = `function(d){const i=d.issue||{};const t=i.tracker;if(!t)return '<div class="card m">No tracker yet.</div>';
+const fmt=x=>x?new Date(x).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'}):'';const hrs=m=>m>=120?Math.round(m/60)+' h':m+' min';
+let h='<div class="card"><div class="m">'+esc(i.id)+(i.area?' · '+esc(i.area):'')+(t.simulatedFeed?'<span class="sim">simulated feed</span>':'')+'</div><div class="t">'+esc(t.title)+'</div>';
+if(i.case)h+='<div class="m">'+esc(i.case.department)+' · priority '+esc(i.case.priority)+'</div>';
+if(t.sla){const pc=Math.min(100,Math.round(100*t.sla.elapsedMinutes/t.sla.targetMinutes));h+='<div class="sla '+(t.sla.lapsed?'late':'')+'"><div class="track"><div class="fill" style="width:'+pc+'%"></div></div><div class="row">'+(t.sla.resolved?'Resolved':t.sla.lapsed?'<span class="late-t">Overdue</span> · '+hrs(t.sla.elapsedMinutes)+' since logged, target '+hrs(t.sla.targetMinutes):hrs(t.sla.elapsedMinutes)+' of '+hrs(t.sla.targetMinutes)+' target')+'</div></div>';}
+if(t.escalation)h+='<div class="esc">Escalated · '+esc(t.escalation.reference)+'<br><span class="m">'+esc(t.escalation.to)+' · demo: recorded, not sent</span></div>';
+else if(d.offerEscalation)h+='<div class="esc">Past target. Say “yes, escalate it” to push it to your ward councillor.</div>';
+h+='<ol class="tl">'+t.steps.map(s=>'<li class="'+esc(s.state)+'"><span class="d" aria-hidden="true"></span><b>'+esc(s.label)+'</b>'+(s.detail||s.at?'<span class="m">'+esc(s.detail||'')+(s.at&&s.detail?' · ':'')+esc(fmt(s.at))+'</span>':'')+'<span class="sr" style="position:absolute;left:-9999px">'+esc(s.state)+'</span></li>').join('')+'</ol></div>';
+return h;}`;
+
 export const RESOURCES = [
   { uri: 'ui://fixwise/issue', name: 'fixwise-issue', title: 'Issue timeline', description: 'Safety steps, municipal progress and the best quote for one or more issues.', html: SHELL('Fixwise issue', ISSUE) },
   { uri: 'ui://fixwise/diagnosis', name: 'fixwise-diagnosis', title: 'Photo diagnosis', description: 'What Nova Lite sees in the customer photo, with confidence, safety steps and the best quote.', html: SHELL('Fixwise diagnosis', DIAG) },
+  { uri: 'ui://fixwise/tracker', name: 'fixwise-tracker', title: 'Job tracker', description: 'Live timeline for one issue: municipal stages with the SLA clock and escalation, and the private repair from quotes to visit.', html: SHELL('Fixwise tracker', TRACKER) },
   { uri: 'ui://fixwise/quotes', name: 'fixwise-quotes', title: 'Quote carousel', description: 'Side-by-side repair quotes.', html: SHELL('Fixwise quotes', QUOTES) },
   { uri: 'ui://fixwise/approval', name: 'fixwise-approval', title: 'Booking confirmation', description: 'The exact quote held for the customer to confirm.', html: SHELL('Fixwise confirm', APPROVAL) },
 ];
