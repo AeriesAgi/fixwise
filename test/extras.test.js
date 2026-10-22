@@ -34,3 +34,16 @@ test('booking carries a generic load-shedding tip (not live data); "why is it mo
   assert.match(b.card.data.booking.loadShedding.tip, /check your area's schedule/); assert.match(b.card.data.booking.loadShedding.source, /not live/);
   assert.doesNotMatch(b.speech, /load-shedding|stage/i);
 });
+
+test('Afrikaans: Nova translates in and out, the turn runs in English, honest about voice', async () => {
+  const seen = [];
+  const TRANSLATE = { converse: async (inp) => { const sys = inp.system[0].text; const t = inp.messages[0].content[0].text; seen.push(sys);
+    return { output: { message: { content: [{ text: / to South African English/.test(sys) ? 'My geyser is leaking in Melville' : `AF: ${t}` }] } } }; } };
+  const env = await makeEnv({ TRANSLATE, CONSOLE_LLM: '0' }); const sid = newSessionFor('afrikaans0001');
+  const r = await (await call(env, '/console/api/say', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid, text: 'My geiser lek in Melville', lang: 'af' }) })).json();
+  assert.equal(r.heardEn, 'My geyser is leaking in Melville'); assert.match(r.speechEn, /geyser/i); assert.equal(r.speech, `AF: ${r.speechEn}`);
+  assert.equal(r.lang, 'af'); assert.equal(r.translatedBy, 'Amazon Nova Lite'); assert.ok(r.card);
+  assert.match(seen[0], /Afrikaans to South African English/); assert.match(seen[1], /to Afrikaans/); assert.match(seen[1], /rand amounts/);
+  const bad = await (await call(env, '/console/api/say', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sid: 'forged.x', text: 'hallo', lang: 'zu' }) })).json();
+  assert.equal(bad.error, 'bad_session');
+});

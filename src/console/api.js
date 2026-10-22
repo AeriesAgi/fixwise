@@ -2,6 +2,7 @@
 // Each turn: Nova Lite (Bedrock Converse, tool use) plans -> MCP client calls the live /mcp over HTTP -> speech + MCP Apps card.
 // Fallbacks: regex router if Bedrock is off/slow/failing; in-process tool call if the HTTP hop to /mcp fails.
 import { parseRating } from '../domain/fixwise.js';
+import { LANGS, translate } from './translate.js';
 import { route, rememberArgs } from './intents.js';
 import { plan, sanitize } from './planner.js';
 import { McpHttpClient } from './mcp-client.js';
@@ -79,6 +80,19 @@ async function runCall(env, client, grant, c, ctx) {
 
 export async function routeConsole(req, env, url, path, ctx) {
   if (env.CONSOLE_ENABLED === '0') return null;
+  if (path === '/console/api/say' && req.method === 'POST' && !req.headers.get('x-fixwise-translated')) { // Afrikaans / isiZulu: translate in, run the same turn in English, translate out
+    let b; try { b = await req.clone().json(); } catch { b = {}; }
+    if (LANGS[b.lang]) {
+      const L = LANGS[b.lang]; const sh = await sha256(String(b.sid || ''));
+      if (!verifySession(env, String(b.sid || ''))) return json({ error: 'bad_session' }, 400);
+      if (await env.KV.incr(`lim:tr:${sh}:${Math.floor(now() / 3600)}`, 3700) > Number(env.TRANSLATE_PER_SESSION_HOUR || 120)) return tooMany('Translation is resting for a bit. Try English.');
+      let inEn; try { inEn = await translate(env, b.text, b.lang, 'en'); } catch { return json({ speech: `Sorry, ${L.name} translation is unavailable right now. Please try English.`, planner: 'translate-failed', calls: [], lang: 'en' }); }
+      const inner = await routeConsole(new Request(req.url, { method: 'POST', headers: (() => { const hh = new Headers(req.headers); hh.set('content-type', 'application/json'); hh.set('x-fixwise-translated', '1'); hh.delete('content-length'); return hh; })(), body: JSON.stringify({ ...b, text: inEn.text, lang: undefined }) }), env, url, path, ctx);
+      const r = await inner.json(); if (!r.speech) return json(r, inner.status);
+      let out; try { out = await translate(env, r.speech, 'en', b.lang); } catch { out = { text: r.speech, ok: false }; }
+      return json({ ...r, speech: out.text, speechEn: r.speech, heardEn: inEn.text, lang: out.ok ? b.lang : 'en', translateMs: (inEn.ms || 0) + (out.ms || 0), translatedBy: 'Amazon Nova Lite' }, inner.status);
+    }
+  }
   if (path === '/console' && req.method === 'GET') return new Response(consolePage(), { headers: { 'content-type': 'text/html; charset=utf-8', ...SEC_HEADERS, 'content-security-policy': PAGE_CSP } });
   if (path === '/console/app.js' && req.method === 'GET') return new Response(consoleScript(), { headers: { 'content-type': 'text/javascript; charset=utf-8', ...SEC_HEADERS } });
   if (path === '/console/api/session' && req.method === 'POST') {
