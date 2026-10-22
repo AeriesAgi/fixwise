@@ -61,7 +61,7 @@ test('tracker + SLA follow-up + escalation, with the demo clock', async () => {
   const tooEarly = await post('/console/api/say', { text: 'escalate it' }); assert.match(tooEarly.speech, /too early to escalate/);
   const sk = await post('/console/api/skip-ahead', { hours: 48 }); assert.equal(sk.totalHours, 48);
   const late = await post('/console/api/say', { text: 'any news on the power?' });
-  assert.match(late.speech, /48 hours, past the 4 hours target\. Want me to escalate/); assert.equal(late.card.data.issue.tracker.sla.lapsed, true);
+  assert.match(late.speech, /48 hours, past the 4-hour target\. Want me to escalate/); assert.equal(late.card.data.issue.tracker.sla.lapsed, true);
   assert.equal(late.card.data.issue.case.status, 'Acknowledged');
   const yes = await post('/console/api/say', { text: 'yes, escalate it' });
   assert.equal(yes.planner, 'confirmation-guard'); assert.match(yes.speech, /escalated case .* recorded, not actually sent/);

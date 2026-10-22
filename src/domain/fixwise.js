@@ -163,12 +163,12 @@ export async function checkStatus(env, h, args) {
     const v = caseView(env, i.case); const sla = slaOf(env, i.case);
     bits.push(`Municipal case ${spell(v.reference)} is ${v.status.toLowerCase()} (simulated feed).`);
     if (i.case.escalation) bits.push(`It was escalated as ${spell(i.case.escalation.reference)}.`);
-    else if (sla?.lapsed) { bits.push(`It's been ${hrs(sla.elapsedMinutes)}, past the ${hrs(sla.targetMinutes)} target. Want me to escalate it to your ward councillor?`); offer = { issue: i.id }; }
+    else if (sla?.lapsed) { bits.push(`It's been ${hrs(sla.elapsedMinutes)}, past the ${hrs(sla.targetMinutes).replace(/ hours$/, '-hour').replace(/ minutes$/, '-minute')} target. Want me to escalate it to your ward councillor?`); offer = { issue: i.id }; }
   }
   if (focus !== 'case') {
     if (i.booking) bits.push(`${i.booking.supplier.replace(/^Demo /, '')} is booked, ${i.booking.slot}.`);
     else if (i.home?.quotes.length) bits.push(`The ${i.home.title.toLowerCase().replace(/ or .*$/, '')} isn't booked yet. Best quote is ${spokenRand(i.home.quotes[0].totalCents)}.`);
-    if (i.advisorNote && !bits.some((b) => /past the/.test(b))) bits.push(i.advisorNote.spoken);
+    if (i.advisorNote && i.home && !bits.some((b) => /past the/.test(b))) bits.push(i.advisorNote.spoken);
   }
   const pi = publicIssue(env, i); if (focus === 'case') { pi.home = null; pi.booking = null; pi.advisorNote = null; pi.tracker = trackerView(env, { ...i, home: null, booking: null }); } else if (focus === 'home') { pi.case = null; pi.tracker = trackerView(env, { ...i, case: null }); }
   return say(bits.join(' ') || 'No updates yet.', { issue: pi, focus, ...(offer ? { offerEscalation: offer } : {}) }, { ui: { resourceUri: 'ui://fixwise/tracker' } });
