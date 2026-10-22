@@ -55,6 +55,7 @@ export async function plan(env, { text, dialog, tools }) {
 // Code-side guard on whatever the model proposes: unknown tools dropped, confirmation fields stripped, schema enforced by the server.
 // Side-effecting tools need the customer to have actually asked for that action in this turn.
 const INTENT = { fixwise_book_repair: /\b(book|go with|choose|pick|take the|send)\b/i, fixwise_cancel_booking: /\bcancel\b/i, fixwise_close_issue: /\b(fixed|sorted|resolved|close|done)\b/i };
+const REMEMBER_ASK = /\b(remember|budget|limit|spend|prefer|avoid|never use|don't use|do not use|i live|we live|we're in|we are in|suburb|area is|mornings?|afternoons?|evenings?|weekends?|note)\b/i;
 const GENERIC = /^(the )?(street|road|outside|home|house|here|kitchen|garden|yard|my street|our street|area|suburb)$/i;
 export function placeNamed(area, text) { const x = String(area).trim(); return !GENERIC.test(x) && /^[A-Z0-9]/.test(x) && String(text).includes(x); }
 export function sanitize(calls, tools, text = '') {
@@ -65,8 +66,9 @@ export function sanitize(calls, tools, text = '') {
     for (const [k, v] of Object.entries(a)) if (v === null || v === '') delete a[k];
     // A place must be one the customer actually named ("Parkhurst", "Jan Smuts Avenue"), not "street" or "outside".
     if (c.name === 'fixwise_report_problem' && a.area && !placeNamed(a.area, text)) delete a.area;
+    if (c.name === 'fixwise_book_repair' && !a.pick && !a.supplier) { const m = /\b(cheapest|fastest|quickest)\b/i.exec(text); if (m) { a.pick = m[1].toLowerCase() === 'quickest' ? 'fastest' : m[1].toLowerCase(); delete a.rank; } }
     return { tool: c.name, args: a };
-  });
+  }).filter((c) => c.tool !== 'fixwise_remember' || REMEMBER_ASK.test(text)); // the model may not re-save old preferences unasked
   if (out.some((c) => INTENT[c.tool] && !INTENT[c.tool].test(text))) return null; // model overreached: regex router decides
   // One report per turn: the server splits compound problems itself and speaks one combined answer.
   const reports = out.filter((c) => c.tool === 'fixwise_report_problem');

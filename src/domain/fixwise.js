@@ -1,6 +1,6 @@
 // Fixwise household service: one spoken problem becomes tracked municipal and private-repair work.
 import { classifyPublic, findDuplicate, simulatedStage, appendChain, verifyChain, STAGES } from './civic.js';
-import { HOME, classifyHomeAll, priceQuotes, rand, spokenRand } from './quotes.js';
+import { HOME, classifyHomeAll, priceQuotes, isAvoided, rand, spokenRand } from './quotes.js';
 import { triage } from './safety.js';
 import { searchMemory } from './memory-search.js';
 import { sha256, sha256hex } from '../util.js';
@@ -128,19 +128,21 @@ export async function checkStatus(env, h, args) {
 export async function compareQuotes(env, h, args) {
   const i = findIssue(h, args.issue);
   if (!i?.home) return err('That issue has no private repair to quote.');
-  const q = i.home.quotes; const cap = h.s.prefs.budgetCapCents;
+  const q = i.home.quotes.filter((x) => !isAvoided(h.s.prefs, x.supplierId, x.supplier)); const cap = h.s.prefs.budgetCapCents;
+  if (!q.length) return say('Every supplier on that job is one you asked me to avoid. Tell me if you want to change that.', { issue: i.id, quotes: [] });
   for (const x of q) x.overBudget = cap ? x.totalCents > cap : false; // budget may have been set after quoting
-  const text = q.slice(0, 3).map((x) => `${ordinal(x.rank)}: ${x.supplier}, ${spokenRand(x.totalCents)}, about ${x.etaHours} hours, rated ${x.rating}${x.overBudget ? ', over your budget' : ''}.`).join(' ');
+  const text = q.slice(0, 3).map((x, n) => `${ordinal(n + 1)}: ${x.supplier}, ${spokenRand(x.totalCents)}, about ${x.etaHours} hours, rated ${x.rating}${x.overBudget ? ', over your budget' : ''}.`).join(' ');
   return say(text + ' Say "book the first one" or name the supplier.', { issue: i.id, quotes: publicIssue(env, i).home.quotes }, { ui: { resourceUri: 'ui://fixwise/quotes' } });
 }
 const ordinal = (n) => ['', 'First', 'Second', 'Third', 'Fourth', 'Fifth'][n] || `Number ${n}`;
 
-function pickQuote(i, args) {
-  const q = i.home.quotes;
+function pickQuote(i, args, prefs = {}) {
+  const all = i.home.quotes; const q = all.filter((x) => !isAvoided(prefs, x.supplierId, x.supplier));
+  if (args.supplier) { const s = args.supplier.toLowerCase(); const named = all.find((x) => x.supplier.toLowerCase().includes(s) || x.supplierId === s); if (named) return named; } // naming one overrides "avoid"
   if (args.pick === 'cheapest') return [...q].sort((a, b) => a.totalCents - b.totalCents)[0];
   if (args.pick === 'fastest') return [...q].sort((a, b) => a.etaHours - b.etaHours)[0];
   if (args.supplier) { const s = args.supplier.toLowerCase(); return q.find((x) => x.supplier.toLowerCase().includes(s) || x.supplierId === s); }
-  return q.find((x) => x.rank === (args.rank || 1));
+  return q[(args.rank || 1) - 1];
 }
 
 // Two-step purchase: step 1 holds the exact quote and returns a confirmation; step 2 books only with that approval.
@@ -151,10 +153,10 @@ export async function bookRepair(env, h, args) {
   if (!i?.home) return err('That issue has no private repair to book.');
   if (i.booking) return say(`That's already booked with ${i.booking.supplier}, ${i.booking.slot}.`, { booking: i.booking });
   if (!args.approval_id) {
-    const q = pickQuote(i, args);
+    const q = pickQuote(i, args, h.s.prefs);
     if (!q) return err('I could not find that quote. Ask me to compare quotes first.');
     if (h.s.prefs.budgetCapCents && q.totalCents > h.s.prefs.budgetCapCents && !args.over_budget_ok)
-      return say(`That quote is ${spokenRand(q.totalCents)}, above your ${spokenRand(h.s.prefs.budgetCapCents)} limit. Say "book it anyway" if you're sure.`, { overBudget: true });
+      return say(`That quote is ${spokenRand(q.totalCents)}, above your ${spokenRand(h.s.prefs.budgetCapCents)} limit. Shall I book it anyway?`, { overBudget: true });
     const slot = slotFor(q, h.s.prefs, args.time_window);
     const hold = { issue: i.id, supplierId: q.supplierId, totalCents: q.totalCents, slot };
     const a = { id: rid('AP'), digest: await sha256hex(JSON.stringify(hold)), hold, supplier: q.supplier, createdMs: Date.now(), expiresMs: Date.now() + APPROVAL_TTL_MS, state: 'pending' };
@@ -201,16 +203,24 @@ export async function remember(env, h, args) {
     if (w?.case && !w.case.area) { w.case.area = p.area; if (!w.area) w.area = p.area; w.updates.push({ at: new Date().toISOString(), text: `Location added: ${p.area}` }); changed.push(`and added it to municipal case ${spell(w.case.reference)}`); }
     delete h.s.awaitingArea;
   }
-  if (args.avoid_supplier) { p.avoidSuppliers = [...new Set([...(p.avoidSuppliers || []), String(args.avoid_supplier).slice(0, 80)])]; changed.push(`to avoid ${args.avoid_supplier}`); }
+  if (args.avoid_supplier) { p.avoidSuppliers = [...new Set([...(p.avoidSuppliers || []), String(args.avoid_supplier).slice(0, 80)])]; changed.push(`never to use ${args.avoid_supplier}`); }
   if (args.note) { h.s.memory.push({ id: rid('M'), text: String(args.note).slice(0, 500), created: Date.now(), source: 'household' }); h.s.memory = h.s.memory.slice(-MAX_MEMORY); changed.push('that note'); }
   if (!changed.length) return err('Tell me what to remember: a budget limit, preferred visit times, your area, a supplier to avoid, or a note.');
   await audit(h, 'household', 'prefs.updated', changed.join('; '));
-  return say(`Got it. I'll remember ${changed.join(', ')}.`, { prefs: p });
+  const list = changed.length > 1 ? `${changed.slice(0, -1).join(', ')} and ${changed[changed.length - 1]}` : changed[0];
+  return say(`Got it. I'll remember ${list}.`, { prefs: p });
 }
 
 export async function recall(env, h, args) {
   const hits = args.query ? searchMemory(h.s.memory, args.query, { limit: 5 }) : h.s.memory.slice(-5).reverse();
-  const text = hits.length ? hits.map((m) => m.text).join(' ') : 'I have nothing remembered about that.';
+  const p = h.s.prefs || {}; const pb = [];
+  if (p.budgetCapCents) pb.push(`your budget limit is ${spokenRand(p.budgetCapCents)}`);
+  if (p.timeWindow) pb.push(`you prefer visits ${p.timeWindow}`);
+  if (p.area) pb.push(`you're in ${p.area}`);
+  if (p.avoidSuppliers?.length) pb.push(`you never want ${p.avoidSuppliers.join(' or ')}`);
+  const prefAsk = !args.query || /\b(budget|limit|spend|time|visit|prefer|area|suburb|supplier|avoid|use|settings?|preferences?|remember)\b/i.test(args.query);
+  const prefText = pb.length && (prefAsk || !hits.length) ? `${pb.join(', ').replace(/^./, (c) => c.toUpperCase())}.` : '';
+  const text = [prefText, hits.map((m) => m.text).join(' ')].filter(Boolean).join(' ') || 'I have nothing remembered about that yet.';
   return say(text, { memory: hits, prefs: h.s.prefs });
 }
 

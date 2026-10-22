@@ -25,12 +25,17 @@ export function classifyHomeAll(description) {
   return [...seen.values()].slice(0, 3);
 }
 
+// "never use Budget Pipes" must match "Demo Budget Pipes" (and "budget pipes co"): compare normalised names both ways.
+const normName = (x) => String(x).toLowerCase().replace(/\b(demo|the|co|cc|pty|ltd)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+export function isAvoided(prefs, supplierId, supplierName) {
+  const n = normName(supplierName);
+  return (prefs?.avoidSuppliers || []).some((a) => { const x = normName(a); return x.length >= 3 && (a.toLowerCase() === String(supplierId).toLowerCase() || n === x || n.includes(x) || x.includes(n)); });
+}
 export function priceQuotes(job, { prefs = {}, urgent = false } = {}) {
   const vat = Number(HOME.vatRate);
-  const avoid = new Set((prefs.avoidSuppliers || []).map((s) => s.toLowerCase()));
   const out = [];
   for (const s of HOME.suppliers) {
-    if (s.status !== 'active' || !s.trades.includes(job.trade) || avoid.has(s.id) || avoid.has(s.name.toLowerCase())) continue;
+    if (s.status !== 'active' || !s.trades.includes(job.trade) || isAvoided(prefs, s.id, s.name)) continue;
     if (!job.lines.every((l) => s.prices[l.sku])) continue;
     const lines = job.lines.map((l) => ({ sku: l.sku, name: l.name, qty: l.qty, unitCents: cents(s.prices[l.sku]), totalCents: cents(s.prices[l.sku]) * l.qty }));
     const subtotal = lines.reduce((a, l) => a + l.totalCents, 0);

@@ -39,7 +39,7 @@ const ipOf = (req) => (req.headers.get('cf-connecting-ip') || req.headers.get('x
 const tooMany = (msg) => json({ error: 'rate_limited', speech: msg }, 429, { 'retry-after': '60' });
 
 const HELP = 'Tell me what\'s broken at home or on your street. For example: "the geyser is leaking", or "the street light outside has been out for two days". I give you safety steps first, log the municipal case, get quotes, and only book when you say yes.';
-const YESNO = /\b(yes|yeah|yep|sure|go ahead|book it|do it|confirm|please do|no|nope|don't|do not|not now|wait|hold off)\b/i;
+const YESNO = /\b(anyway|yes|yeah|yep|sure|go ahead|book it|do it|confirm|please do|no|nope|don't|do not|not now|wait|hold off)\b/i;
 
 function llmEnabled(env) { return env.CONSOLE_LLM !== '0' && (env.BEDROCK || env.CONSOLE_LLM === '1' || env.AWS_LAMBDA_FUNCTION_NAME); }
 
@@ -103,7 +103,13 @@ export async function routeConsole(req, env, url, path, ctx) {
 
     // 1. Plan. A yes/no to a held booking is decided in code; everything else goes to Nova Lite first.
     let calls = null, planner = 'regex', plannerMs = 0, tokens = null, llmText = '', fallbackReason = null;
-    if (dialog.pendingApproval && YESNO.test(text)) planner = 'confirmation-guard';
+    if (dialog.pendingOverBudget && !YESNO.test(text)) delete dialog.pendingOverBudget;
+    if (dialog.pendingOverBudget && YESNO.test(text)) { // "above your limit, book it anyway?" -> a yes is decided in code, like a booking confirmation
+      planner = 'confirmation-guard'; const ok = /\b(yes|yeah|yep|sure|go ahead|book it|do it|confirm|please do)\b/i.test(text); const held = dialog.pendingOverBudget; delete dialog.pendingOverBudget;
+      if (!ok) { dialog.hist = [...(dialog.hist || []), { u: text.slice(0, 300), a: 'Okay, not booked.' }].slice(-4); await kvPut(env, dkey, dialog, 86400); return json({ speech: "Okay, I won't book that one. Say compare quotes to see the others.", planner, calls: [], totalMs: Date.now() - t0 }); }
+      calls = [{ tool: 'fixwise_book_repair', args: { ...held, over_budget_ok: true } }];
+    }
+    else if (dialog.pendingApproval && YESNO.test(text)) planner = 'confirmation-guard';
     else if (llmEnabled(env) && await env.KV.incr(`lim:nova:${Math.floor(now() / 3600)}`, 3700) > L.novaPerHour) fallbackReason = 'nova_hourly_ceiling'; // global cost cap
     else if (llmEnabled(env)) {
       try {
@@ -113,6 +119,8 @@ export async function routeConsole(req, env, url, path, ctx) {
         if (calls && calls.length && !calls.some((c) => c.tool === 'fixwise_remember') && /\b(remember|budget|prefer|avoid|never use)\b/i.test(text)) {
           const ra = rememberArgs(text); if (ra && !ra.note) calls.unshift({ tool: 'fixwise_remember', args: ra }); // model dropped half a compound ask
         }
+        if (calls && calls.some((c) => c.tool === 'fixwise_report_problem') && !/\b(where|what do you remember|remind me|recall)\b/i.test(text)) calls = calls.filter((c) => c.tool !== 'fixwise_recall'); // no stray "nothing remembered" on a new report
+        if (calls && !calls.length) { const r = route(text, dialog); if (r.tool && r.tool !== 'fixwise_report_problem' && r.tool !== 'fixwise_disconnect') { calls = [r]; llmText = ''; planner = 'nova-lite+guard'; fallbackReason = 'grounded'; } } // never answer status/memory from chat history: ask the server
         if (!calls) { planner = 'regex'; fallbackReason = 'guarded_plan'; }
         else if (!calls.length && !llmText) { calls = null; planner = 'regex'; fallbackReason = 'empty_plan'; }
       } catch (e) { fallbackReason = String(e?.name || e?.message || e).slice(0, 60); planner = 'regex'; calls = null; }
@@ -134,6 +142,7 @@ export async function routeConsole(req, env, url, path, ctx) {
     for (const d of done) {
       const sc = d.result?.structuredContent || {};
       if (sc.approval) dialog.pendingApproval = sc.approval.id; else if (d.tool === 'fixwise_book_repair') delete dialog.pendingApproval;
+      if (d.tool === 'fixwise_book_repair' && sc.overBudget) dialog.pendingOverBudget = Object.fromEntries(Object.entries(d.args || {}).filter(([k]) => ['issue', 'rank', 'pick', 'supplier', 'time_window'].includes(k)));
       if (d.tool === 'fixwise_report_problem') { if (sc.needsArea) dialog.awaitingArea = true; else delete dialog.awaitingArea; }
       if (d.tool === 'fixwise_remember' && d.args.area) delete dialog.awaitingArea;
       if (d.args?.rank) dialog.lastRank = d.args.rank;

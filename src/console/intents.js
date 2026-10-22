@@ -32,8 +32,9 @@ export function route(utterance, dialog = {}) {
   if (has(t, /\b(what have you done|activity|audit|history)\b/)) return { tool: 'fixwise_activity', args: {} };
   if (has(t, /\b(it's fixed|is fixed now|all sorted|sorted now|mark .* fixed)\b/)) return { tool: 'fixwise_close_issue', args: issueHint(t) };
   if (has(t, /\b(disconnect|unlink)\b/)) return { tool: 'fixwise_disconnect', args: {} };
+  if (has(t, /\b(what's my|what is my|what are my) (budget|limit|preferences|area|suburb)\b/)) return { tool: 'fixwise_recall', args: { query: utterance.slice(0, 200) } };
   const rem = remember(t); if (rem) return { tool: 'fixwise_remember', args: rem };
-  if (has(t, /\b(where is|where's|what do you remember|remind me)\b/)) return { tool: 'fixwise_recall', args: { query: utterance.slice(0, 200) } };
+  if (has(t, /\b(where is|where's|what do you remember|remind me|what's my|what is my|what are my|my preferences)\b/)) return { tool: 'fixwise_recall', args: { query: utterance.slice(0, 200) } };
   if (t.trim().length < 3 || has(t, /^ (hi|hello|hey|help|what can you do) $/)) return { help: true };
   return { tool: 'fixwise_report_problem', args: { description: String(utterance).slice(0, 1000) } };
 }
