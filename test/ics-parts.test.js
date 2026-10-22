@@ -8,7 +8,7 @@ const T = Date.UTC(2026, 9, 22, 13, 0); // Thu 22 Oct 2026, 15:00 SAST
 test('visit windows are concrete SAST times', () => {
   assert.equal(visitWindow('tomorrow morning', T).start, '2026-10-23T06:00:00.000Z');
   assert.equal(visitWindow('tomorrow morning', T).end, '2026-10-23T10:00:00.000Z');
-  const w = visitWindow('today, within about 3 hours', T); assert.equal(w.start, '2026-10-22T14:00:00.000Z'); assert.equal(w.end, '2026-10-22T16:00:00.000Z');
+  const w = visitWindow('today, within about 3 hours', T); assert.equal(w.start, '2026-10-22T13:30:00.000Z'); assert.equal(w.end, '2026-10-22T16:00:00.000Z');
   assert.equal(visitWindow('Saturday afternoon', T).start, '2026-10-24T10:00:00.000Z');
   assert.match(visitWindow('tomorrow morning', T).label, /Fri.*23 Oct.*08:00–12:00 SAST/);
   const ics = buildIcs({ ref: 'BK-1', start: '2026-10-23T06:00:00.000Z', end: '2026-10-23T10:00:00.000Z', title: 'A, b; c', desc: 'x' });

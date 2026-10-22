@@ -13,13 +13,13 @@ const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 
 // Local SAST midnight of the day `add` days after nowMs, as UTC ms.
 const dayStart = (nowMs, add) => { const l = new Date(nowMs + SAST); return Date.UTC(l.getUTCFullYear(), l.getUTCMonth(), l.getUTCDate() + add) - SAST; };
 const part = (s) => /morning/.test(s) ? [8, 12] : /afternoon/.test(s) ? [12, 17] : /evening/.test(s) ? [17, 20] : [8, 17];
-const ceilHour = (ms) => Math.ceil(ms / H) * H;
+const ceilHalf = (ms) => Math.ceil(ms / (H / 2)) * (H / 2);
 
 export function visitWindow(slot, nowMs = Date.now()) {
   const s = String(slot || '').toLowerCase();
   let start, end;
   const within = s.match(/within (?:about )?(\d+) hours?/);
-  if (within) { start = ceilHour(nowMs + H); end = Math.max(ceilHour(nowMs + Number(within[1]) * H), start + 2 * H); }
+  if (within) { start = ceilHalf(nowMs + H / 2); end = Math.max(ceilHalf(nowMs + Number(within[1]) * H), start + 2 * H); }
   else {
     let add = 1;
     if (/\btoday\b/.test(s)) add = 0; else if (/within two days/.test(s)) add = 2;
