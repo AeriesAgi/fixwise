@@ -79,7 +79,7 @@ const $=id=>document.getElementById(id);const log=$('log'),bar=$('bar'),card=$('
 let sid=localStorage.getItem('fx_sid2');async function ensureSid(force){if(sid&&!force)return sid;const r=await fetch('/console/api/session',{method:'POST'}).then(r=>r.json()).catch(()=>({}));sid=r.sid||null;if(sid)localStorage.setItem('fx_sid2',sid);return sid}
 const tick=()=>{$('clock').textContent=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})};tick();setInterval(tick,15000);
 const STARTERS=["The geyser's leaking through the ceiling and the street light outside has been out for two days","Compare the quotes","Book the first one","Any news on the geyser?","Remember our budget is 2500 rand","Remember the stopcock is behind the garage","What have you done for me?"];
-function chips(list){$('chips').innerHTML='';list.forEach(s=>{const b=document.createElement('button');b.className='chip';b.textContent=s;b.onclick=()=>say(s);$('chips').appendChild(b)})}
+function chips(list){$('chips').innerHTML='';list.forEach(s=>{const b=document.createElement('button');b.className='chip';b.textContent=s;b.onclick=()=>say(s);$('chips').appendChild(b)});const lg=$('log')||document.querySelector('.log');if(lg)requestAnimationFrame(()=>{lg.scrollTop=lg.scrollHeight})}
 chips(STARTERS.slice(0,3));
 function add(cls,html){const d=document.createElement('div');d.className='msg '+cls;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
