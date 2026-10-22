@@ -14,7 +14,14 @@ Say one sentence to Alexa+, for example *"The fridge is buzzing and the kitchen 
 5. **Books only after you say yes.** The hold is tied to that exact quote, works once and expires after 15 minutes. The language model can't confirm a booking. Only code can, after a clear yes.
 6. **Remembers your household across conversations.** *"Any news on my geyser?"* works in a new conversation days later, and so does *"where's our stopcock?"*. A background advisor note (Nova Lite) is added once it's ready.
 7. **Shows its work.** MCP Apps cards show the timeline, the quote carousel and the confirmation. Every action goes into a hash-chained audit trail that you can verify by voice ("what have you done for me?").
-8. **Says no politely.** Requests outside home and street repairs (weather, music) get a short, friendly refusal and a prompt to say what needs fixing.
+8. **Reads a photo.** Send a picture of the fault; Nova Lite identifies it and the same safety → municipal → quotes flow runs.
+9. **Tracks the job to done.** A tracker card runs from reported to fixed. When the (simulated) municipal case is overdue it offers escalation, which is **recorded, not sent**.
+10. **Books a realistic visit.** Trades work 07:00–17:00 Mon–Sat; urgent jobs are same-day only if they can start by 15:00. You get a signed **.ics file** (not an Alexa reminder), a **parts list** as amazon.co.za search links (nothing ordered) and, for electrical jobs, a **generic load-shedding tip** (not live schedule data).
+11. **Explains the price.** *"Why is the first one more expensive?"* gets the gap and its main cause spoken, plus a line-by-line table.
+12. **Asks how it went.** After the visit, *"any news?"* asks for 1–5 stars. A low score means that supplier is never suggested again; "not fixed" reopens the job with the other quotes.
+13. **Speaks Afrikaans and isiZulu (console).** Nova Lite translates both ways. Polly has no voice for either, so replies use the device voice or captions; cards stay English; isiZulu is beta.
+14. **Shares with the landlord.** A signed, read-only, 7-day live page. Fixwise never sends it; the tenant does.
+15. **Says no politely.** Requests outside home and street repairs (weather, music) get a short, friendly refusal and a prompt to say what needs fixing.
 
 ## How we built it
 ![architecture](../media/architecture.png)
@@ -61,6 +68,10 @@ Say one sentence to Alexa+, for example *"The fridge is buzzing and the kitchen 
    4. *"Book the first one for the fridge"*
    5. **Yes, book it**
    6. **New conversation**, then *"Any news on my fridge?"*
+   7. *"Why is the first one more expensive?"* (cost table)
+   8. Press **⏩ +48 h** twice, then *"Any news?"* and answer *"Not fixed, 2 stars"* (rating)
+   9. *"Share this with my landlord"*, then open the link (read-only page)
+   10. Switch the language to **Afrikaans** and say *"My kombuiskraan lek"*
 
    The tool-call trace is on by default; press **T** to hide it.
 2. **One command: your own MCP client.**
@@ -105,7 +116,8 @@ Put guardrails in code, not in prompts. Nova Lite plans well, but it sometimes s
 - Real supplier onboarding with verified, insured local trades.
 - A follow-up beat by SMS or email when the municipal case moves.
 - Insurance claim packs built from the audit chain.
-- isiZulu and Afrikaans prompts.
+- Native Afrikaans and isiZulu voices once a TTS voice exists for them, and translated cards.
+- Live load-shedding data from a source licensed for commercial use.
 - On-device Alexa+ testing as soon as the developer tools open up.
 
 ## Product feedback (per tool)

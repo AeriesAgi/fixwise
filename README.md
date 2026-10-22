@@ -11,6 +11,22 @@ Fixwise is a self-hosted **MCP server (spec 2025-11-25, Streamable HTTP)** that 
 
 It also remembers your household across sessions. "Any news on the geyser?" works days later, and so does "where's our stopcock?". A tamper-evident audit chain records every action.
 
+### From booking to fixed (each one labelled honestly)
+
+| Feature | What it really does | What it does **not** do |
+|---|---|---|
+| **Photo diagnosis** (`fixwise_diagnose_photo`) | Amazon Nova Lite looks at the photo, then the normal safety → municipal → quotes flow runs | It is not a qualified inspection |
+| **Job tracker** | Reported → quotes → booked → visit → fixed, with a municipal SLA clock | The municipal status feed is **simulated** |
+| **Escalation** (`fixwise_escalate`) | Asks first, then records an escalation on the overdue case | It is **recorded, not sent** to any municipality or councillor |
+| **Realistic visit window** | Trades work 07:00–17:00 Mon–Sat. An urgent job is same-day only if it can start by 15:00; otherwise the next working morning or afternoon | No evening slots, no Sundays |
+| **Calendar file** | A signed `.ics` download with a 1-hour alarm | It is a file you add yourself, **not** an Alexa reminder |
+| **Parts list** | What the trade may need, with a "why" line, as amazon.co.za search links | Nothing is added to a cart or ordered |
+| **Load-shedding note** | For geyser, electrical, gate and appliance jobs: a tip to check your schedule before the visit | **Generic tip, not live schedule data** (EskomSePush's terms don't allow commercial use) |
+| **Cost explanation** | "Why is the first one more expensive?" speaks the gap and its biggest cause and shows a "What you pay for" line table | Prices come from synthetic demo suppliers |
+| **Rate the plumber** (`fixwise_rate_repair`) | After the visit window, "any news?" asks for 1–5 stars. 2 or less means that supplier is never suggested again. "Not fixed" reopens the job and offers the other quotes | Ratings stay in your household; they are not published |
+| **Afrikaans / isiZulu** (console) | Amazon Nova Lite translates what you say into English for the tools and translates the reply back (≈1.5 s) | Amazon Polly has no Afrikaans or isiZulu voice, so replies use the device's own voice if it has one, otherwise captions. Cards stay in English. isiZulu is **beta** |
+| **Landlord view** (`fixwise_share_with_landlord`) | A signed, read-only, live page of your repairs, valid 7 days; a tampered link returns 404 | Fixwise does **not send it**; you share it yourself |
+
 On Echo Show, the tools link to **MCP Apps** cards: the issue timeline, a quote carousel and the booking confirmation. In the background, **Amazon Nova Lite** (Bedrock Converse, called from an SQS worker Lambda) writes a short advisor note, so the MCP tools stay deterministic and well under Alexa+'s 500 ms budget. In the simulated Alexa+ console, Nova Lite also **plans each turn with tool use**, and an MCP client calls the live `/mcp` over HTTP (see below).
 
 ![Simulated Alexa+ console](docs/media/console-1-report.png)
@@ -60,7 +76,7 @@ npm test                                   # unit + integration tests (node --te
 | Console turn: Nova Lite planning / whole turn (server) | p50 ≈ 650 ms / ≈ 0.75–1.2 s |
 | Nova Lite tokens per planned turn | ≈ 2,050 in / 60 out |
 | Model cost per 8-turn conversation | ≈ $0.001 |
-| Tests | 58 Node (`npm test`) + 3 Python (`pytest agents`) |
+| Tests | 87 Node (`npm test`) + 3 Python (`pytest agents`), plus a 2-viewport browser smoke test (`scripts/e2e-smoke.py`) run on every deploy, with automatic rollback if it fails |
 | Lighthouse accessibility (`/console`) | 100 desktop, 100 at 412 px, 100 at 375 px |
 
 ## Judges: connect your own MCP client in one command
@@ -103,9 +119,13 @@ The full transcript is in [`docs/submission/evidence-oauth-401.txt`](docs/submis
 |---|---|
 | `fixwise_report_problem` | Safety steps, municipal case (asks for the suburb if missing), quotes; splits compound reports into separate repairs; queues the advisor note |
 | `fixwise_check_status` / `fixwise_list_issues` | Progress on your issues, across sessions |
-| `fixwise_compare_quotes` | Quote carousel |
+| `fixwise_diagnose_photo` | Nova Lite reads a photo of the fault, then the same flow as report_problem |
+| `fixwise_compare_quotes` | Quote carousel; `explain=true` for the cost breakdown |
 | `fixwise_book_repair` | Two steps: hold the quote, then confirm only after a yes |
+| `fixwise_escalate` | Overdue municipal case, after a yes: escalation recorded (not sent) |
 | `fixwise_cancel_booking` / `fixwise_close_issue` | Change or finish an issue |
+| `fixwise_rate_repair` | 1–5 stars and fixed or not after the visit |
+| `fixwise_share_with_landlord` | Signed read-only 7-day link; not sent by Fixwise |
 | `fixwise_remember` / `fixwise_recall` | Budget limit, visit times, suburb, suppliers to avoid, notes |
 | `fixwise_activity` | Audit trail with chain verification |
 | `fixwise_disconnect` | Revoke the Alexa link |
@@ -149,6 +169,7 @@ BUDGET_EMAIL=you@example.com ./scripts/deploy.sh   # identity, Bedrock check, SS
 - Nothing is booked without an explicit yes.
 - Fixwise takes no card details; repairs are paid on completion.
 - Suppliers and the municipal feed are synthetic in this demo, and are labelled so.
+- Fixwise sends nothing on your behalf: escalations are recorded, the landlord link and calendar file are yours to share, and parts are search links only.
 
 See [PROVENANCE.md](PROVENANCE.md) for the code reused from earlier Culltron projects.
 
