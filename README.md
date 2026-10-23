@@ -76,7 +76,7 @@ npm test                                   # unit + integration tests (node --te
 | Console turn: Nova Lite planning / whole turn (server) | p50 ≈ 650 ms / ≈ 0.75–1.2 s |
 | Nova Lite tokens per planned turn | ≈ 2,050 in / 60 out |
 | Model cost per 8-turn conversation | ≈ $0.001 |
-| Tests | 87 Node (`npm test`) + 3 Python (`pytest agents`), plus a 2-viewport browser smoke test (`scripts/e2e-smoke.py`) run on every deploy, with automatic rollback if it fails |
+| Tests | 92 Node (`npm test`) + 3 Python (`pytest agents`), plus a 2-viewport browser smoke test (`scripts/e2e-smoke.py`) run on every deploy, with automatic rollback if it fails |
 | Lighthouse accessibility (`/console`) | 100 desktop, 100 at 412 px, 100 at 375 px |
 
 ## Judges: connect your own MCP client in one command

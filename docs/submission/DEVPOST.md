@@ -56,7 +56,7 @@ Say one sentence to Alexa+, for example *"The fridge is buzzing and the kitchen 
 | Console turn, Nova Lite planning | **p50 ≈ 650 ms**; whole turn ≈ 0.75–1.2 s server side |
 | Nova Lite tokens per planned turn | ≈ 2,050 in / 60 out |
 | Model cost per 8-turn conversation | **≈ $0.001** (Nova Lite on-demand $0.06 / $0.24 per M tokens) |
-| Tests | **50 Node tests + 3 Python tests**, all passing; gitleaks clean |
+| Tests | **92 Node tests + 3 Python tests**, all passing; gitleaks clean |
 | Accessibility | **Lighthouse 100** on desktop, 412 px and 375 px |
 | Tools / MCP Apps cards | 11 / 3 |
 
